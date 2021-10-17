@@ -1,0 +1,6 @@
+__pycache__
+data/*
+resources/*
+archive/*
+paper/*
+tests/*
