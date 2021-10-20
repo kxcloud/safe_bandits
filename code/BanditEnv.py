@@ -34,8 +34,8 @@ class BanditEnv:
         return self.current_x
     
     def _get_noise(self, a):
-        reward_noise = np.random.normal() / 2
-        safety_noise = np.random.normal() / 2
+        reward_noise = np.random.normal()
+        safety_noise = np.random.normal()
         return reward_noise, safety_noise
         
     def act(self, a):
