@@ -57,6 +57,19 @@ def alg_naive_ts(bandit, epsilon=0.1):
     a = get_best_action(X_new, beta_hat_bs, bandit)
     return a
 
+def alg_naive_safe_ts(bandit, epsilon=0.1):
+    X_new = bandit.sample()
+
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space)
+    
+    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
+    beta_hat_bs = linear_regression(phi_XA_bs, R_bs)
+    
+    a = get_best_action(X_new, beta_hat_bs, bandit)
+    return a
+    
+
 num_random_steps = 2
 num_alg_steps = 100
 
