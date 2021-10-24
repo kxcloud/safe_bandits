@@ -1,7 +1,10 @@
 import time
+from functools import partial
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+import utils
 
 n_grid = 70
 X_lin = np.linspace(0, 1, n_grid)
@@ -48,9 +51,12 @@ def get_confidence_interval(m_hat, error_bs, alpha=0.05):
     conf_interval = m_hat - error_quantiles
     return conf_interval
 
-def apply_local_bootstrap(X, y, kernel, h, num_bs_samples):
+def apply_local_bootstrap(X, y, kernel, h, num_bs_samples, X_eval=None):
+    if X_eval is None:
+        X_eval = X_lin
+    
     f_hat = get_kernel_estimator(X, y, kernel, h) 
-    m_hat = f_hat(X_lin)
+    m_hat = f_hat(X_eval)
     
     n=len(X)
     KDE = get_linear_smoother(X, kernel, h)
@@ -61,10 +67,10 @@ def apply_local_bootstrap(X, y, kernel, h, num_bs_samples):
     for i in range(n):
         y_bs[:,i] = np.random.choice(y, size=num_bs_samples, p=KDE[i,:])
 
-    error_bs = np.zeros((num_bs_samples, n_grid))  
+    error_bs = np.zeros((num_bs_samples, len(X_eval)))  
     for b in range(num_bs_samples):
         f_hat_bs = get_kernel_estimator(X, y_bs[b,:], kernel, h)
-        error_bs[b,:] = f_hat_bs(X_lin) - m_hat
+        error_bs[b,:] = f_hat_bs(X_eval) - m_hat
 
     return m_hat, error_bs
 
@@ -82,7 +88,7 @@ def argmax_with_mask(values, mask):
 h = 0.5
 kernel = lambda t: 0.1 * gaussian(t) + epanechnikov(t)
 s_baseline = 0.6
-s_alpha = 0.05
+s_alpha = 0.1
 
 fig5, ax5 = plt.subplots(figsize=(3,2))
 ax5.plot(X_lin, kernel((X_lin-0.5)/h)/h, c="gray")
@@ -140,7 +146,7 @@ def get_naive_safe_set_ts_action(X, R, S, x_default=0, s_baseline=s_baseline):
     return X_hat
     
 
-def get_safe_ts_action(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None):
+def get_safe_ts_action(X, R, S, x_default=0, s_baseline=s_baseline, fwer_fallback=True, plot_ax=None):
     X_1, R_1, S_1 = X[::2], R[::2], S[::2]
     X_2, _, S_2 = X[1::2], R[1::2], S[1::2]
     
@@ -156,7 +162,7 @@ def get_safe_ts_action(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None
         X_1_bs = X_1[bs_indices]
         S_1_bs = S_1[bs_indices]
         s_hat_bs, error_bs_bs = apply_local_bootstrap(X_1_bs, S_1_bs, kernel, h, 30)      
-        lower_ci_bs = np.quantile(s_hat_bs + error_bs_bs, 0.1, axis=0)
+        lower_ci_bs = np.quantile(s_hat_bs + error_bs_bs, s_alpha, axis=0)
         bs_test_results[idx,:] = lower_ci_bs > s_baseline
     estimated_pass_prob = bs_test_results.mean(axis=0)
     
@@ -170,35 +176,83 @@ def get_safe_ts_action(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None
     
     s_hat, error_bs = apply_local_bootstrap(X_2, S_2, kernel, h, 50)
     m_hat_at_X_hat_bs = s_hat[idx_max] + error_bs[:, idx_max]
-    lower_ci = np.quantile(m_hat_at_X_hat_bs, 0.1)
+    lower_ci = np.quantile(m_hat_at_X_hat_bs, s_alpha)
 
     if lower_ci > s_baseline:
         return X_hat
-    else:
-        return x_default
-
+    
+    if fwer_fallback:
+        alg = get_fwer_selection(num_tests=5, use_random_test_points=True)
+        x_fallback = alg(X_1, R_1, S_1, x_default=x_default, s_baseline=s_baseline)
+        return x_fallback
+    
+    return x_default
+            
+def get_fwer_selection(num_tests, use_random_test_points):
+    def get_fwer_safe_action(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None):
+        """ 
+        Do a Bonferroni-style FWER test at a grid of test points, then pick
+        according to Thompson Sampling from the rejected points.
+        """
+        if use_random_test_points:
+            test_points = np.random.uniform(0, 1, size=num_tests)
+        else:
+            test_points = np.linspace(0.05, 1, num=num_tests)
+        
+        bs_samples = 50
+        safety_bs = np.zeros((bs_samples, num_tests))
+        for bs_idx in range(bs_samples):
+            bs_indices = np.random.choice(len(X), size=len(X))
+            X_bs = X[bs_indices]
+            S_bs = S[bs_indices]
+            f_hat = get_kernel_estimator(X_bs, S_bs, kernel, h)
+            safety_bs[bs_idx,:] = f_hat(test_points)
+            
+        lower_ci = np.quantile(safety_bs, s_alpha/num_tests, axis=0)
+        safety_inds = lower_ci > s_baseline
+        
+        num_safe = safety_inds.sum()
+        
+        if num_safe == 0:
+            return x_default
+        
+        safe_X_vals = test_points[np.nonzero(safety_inds)]
+        if num_safe == 1:
+           return safe_X_vals[0]
+       
+        # End with TS on safe set
+        r_hat, error_bs = apply_local_bootstrap(
+            X, R, kernel, h, 1, X_eval=safe_X_vals
+        )
+        r_hat_bs = r_hat+error_bs[0]
+        idx_max = np.argmax(r_hat_bs)
+        X_hat = safe_X_vals[idx_max]
+        return X_hat
+    return get_fwer_safe_action
 
 # DATA GENERATING PROCESS
-def sample(x, reward_fn, safety_fn, reward_noise=1):
-    R = np.random.normal(reward_fn(x), scale=reward_noise)
-    S = np.random.binomial(1, safety_fn(x))
+def sample(x, reward_fn, safety_fn, dependence, reward_noise=1):
+    r_cdf = utils.get_normal_inv_cdf(loc=reward_fn(x), scale=reward_noise)
+    s_cdf = utils.get_binomial_inv_cdf(n=1, p=safety_fn(x))
+    R, S = utils.correlated_sampler(r_cdf, s_cdf, dependence)
     return R, S
 
-def run_alg(reward_fn, safety_fn, action_selection, num_timesteps, X_0=None):
+def run_alg(reward_fn, safety_fn, dependence, action_selection, num_timesteps, X_0=None):
     if X_0 is None:
         X_0 = np.linspace(0, 1, num=10)
     n_0 = len(X_0)
     n_total = n_0 + num_timesteps
-    X_all = np.empty(n_total)
-    R_all = np.empty(n_total)
-    S_all = np.empty(n_total)
+    X_all = np.zeros(n_total)
+    R_all = np.zeros(n_total)
+    S_all = np.zeros(n_total)
     X_all[:n_0] = X_0
-    R_all[:n_0], S_all[:n_0] = sample(X_0, reward_fn, safety_fn) 
+    for idx in range(n_0):
+        R_all[idx], S_all[idx] = sample(X_0[idx], reward_fn, safety_fn, dependence) 
     
     for t in range(num_timesteps):
         idx = n_0 + t
         X_hat = action_selection(X_all[:idx], R_all[:idx], S_all[:idx])
-        R, S = sample(X_hat, reward_fn, safety_fn)
+        R, S = sample(X_hat, reward_fn, safety_fn, dependence)
         X_all[idx], R_all[idx], S_all[idx] = X_hat, R, S
 
     return X_all, R_all, S_all
@@ -207,16 +261,20 @@ def run_alg(reward_fn, safety_fn, action_selection, num_timesteps, X_0=None):
 r = lambda t: t
 s = lambda t: 1-t
 action_selections = {
-    "TS (unsafe)" : get_naive_ts_action,
-    "Naive single-test TS" : get_naive_safe_ts_action,
+    # "TS (unsafe)" : get_naive_ts_action,
+    # "Naive single-test TS" : get_naive_safe_ts_action,
     "Naive safe set TS (unsafe)" : get_naive_safe_set_ts_action,
-    "Optimal single-test TS" : get_safe_ts_action
+    "FWER safe TS (k=10, random)" : get_fwer_selection(10, True),
+    "Optimal single-test TS" : partial(get_safe_ts_action, fwer_fallback=False),
+    "Optimal single-test TS (FWER fallback)" : get_safe_ts_action
 }
-num_timesteps = 50
+
+num_timesteps = 40
 x_default = 0
 
-n_0 = 40 # Number of initial data points
+n_0 = 20 # Number of initial data points
 X_0 = np.linspace(0, 1, n_0)**2
+dependence = 0
 
 num_runs = 300
 
@@ -232,7 +290,14 @@ for action_select_label, action_selection in action_selections.items():
     for run_idx in range(num_runs):
         if run_idx % np.ceil(num_runs/10) == 0:
             print(run_idx, end=".")
-        X[run_idx], R[run_idx], S[run_idx] = run_alg(r, s, action_selection, num_timesteps, X_0)
+        X[run_idx], R[run_idx], S[run_idx] = run_alg(
+            r, 
+            s,
+            dependence,
+            action_selection, 
+            num_timesteps, 
+            X_0
+        )
     
     results[action_select_label] = (X, R, S)
     duration = (time.time() - start_time)/60
@@ -251,14 +316,7 @@ fig2, axes = plt.subplots(
     nrows=1, ncols=len(idx_of_datasets_to_plot), sharex=True, sharey=True,
     figsize=(13,4)
 )
-fig3, axes3 = plt.subplots(
-    nrows=2, ncols=len(idx_of_datasets_to_plot), sharex=True, figsize=(13,8)
-)
 
-fig4, axes4 = plt.subplots(
-    nrows=1, ncols=len(idx_of_datasets_to_plot), sharex=True, sharey=True,
-    figsize=(13,4)
-)
 
 for action_select_label, action_selection in action_selections.items():
     X, R, S = results[action_select_label]
@@ -277,6 +335,15 @@ for action_select_label, action_selection in action_selections.items():
         
     
 if "Optimal single-test TS" in results:
+    fig3, axes3 = plt.subplots(
+        nrows=2, ncols=len(idx_of_datasets_to_plot), sharex=True, figsize=(13,8)
+    )
+    
+    fig4, axes4 = plt.subplots(
+        nrows=1, ncols=len(idx_of_datasets_to_plot), sharex=True, sharey=True,
+        figsize=(13,4)
+    )
+    
     X_safe, R_safe, S_safe = results["Optimal single-test TS"]
     for plot_idx, dataset_idx in enumerate(idx_of_datasets_to_plot):
         X_i, R_i, S_i = X_safe[dataset_idx], R_safe[dataset_idx], S_safe[dataset_idx]
@@ -299,7 +366,7 @@ if "Optimal single-test TS" in results:
         ax_down.plot(X_lin, s_hat, lw=line_width,label ="Optimal single-test TS", c="C2")
         ax_down.plot(X_lin, s(X_lin), c="gray", ls="--", label="Truth")
         
-        get_safe_ts_action(X_i,R_i,S_i, plot_ax=axes4[plot_idx])
+        get_safe_ts_action(X_i, R_i, S_i, plot_ax=axes4[plot_idx])
         axes4[plot_idx].set_title(f"Dataset {dataset_idx}")
     axes4[-1].legend()  
     
@@ -309,6 +376,7 @@ ax_avg.set_xlabel("Timestep")
 ax_avg.set_ylabel("Mean Action selected")
 ax_safety.set_ylabel("% Safe")
 ax_safety.hlines(1-s_alpha, 0, num_timesteps, ls="--", lw=1, color="gray")
+fig.suptitle(f"num_runs: {num_runs}, reward-safety dependence: {dependence}")
 
 axes[0].set_ylabel("Action selected")
 axes[0].set_xlabel("Timestep")
