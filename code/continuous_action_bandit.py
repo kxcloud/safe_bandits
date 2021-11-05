@@ -308,8 +308,8 @@ print(f"Total duration: {total_duration:0.02f} minutes for {num_runs} runs per s
 #%% PLOTS
 idx_of_datasets_to_plot = range(4)
 
-fig, (ax_avg, ax_safety) = plt.subplots(
-    ncols=2, sharex=True, sharey=True, figsize=(11,5)
+fig, (ax_avg, ax_safety, ax_default) = plt.subplots(
+    ncols=3, sharex=True, sharey=True, figsize=(11,5)
 )
 
 fig2, axes = plt.subplots(
@@ -326,6 +326,9 @@ for action_select_label, action_selection in action_selections.items():
     
     safety_pct = (S[:,-num_timesteps:] > s_baseline).mean(axis=0)
     ax_safety.plot(range(num_timesteps), safety_pct)
+    
+    default_pct = (X[:,-num_timesteps:] == x_default).mean(axis=0)
+    ax_default.plot(range(num_timesteps), default_pct)
     
     for plot_idx, dataset_idx in enumerate(idx_of_datasets_to_plot):
         ax = axes[plot_idx]
@@ -370,20 +373,24 @@ if "Optimal single-test TS" in results:
         axes4[plot_idx].set_title(f"Dataset {dataset_idx}")
     axes4[-1].legend()  
     
+    axes3[0,0].set_ylabel("Reward")
+    axes3[1,0].set_ylabel("Safety")
+    axes3[-1,-1].legend()
+
+    
 ax_avg.hlines(1-s_baseline, 0, num_timesteps, ls="--", lw=1, color="red")#, label="Safety threshold")
 fig.legend(loc=7)
 ax_avg.set_xlabel("Timestep")
 ax_avg.set_ylabel("Mean Action selected")
 ax_safety.set_ylabel("% Safe")
 ax_safety.hlines(1-s_alpha, 0, num_timesteps, ls="--", lw=1, color="gray")
+ax_default.set_ylabel("% Default")
+
 fig.suptitle(f"num_runs: {num_runs}, reward-safety dependence: {dependence}")
 
 axes[0].set_ylabel("Action selected")
 axes[0].set_xlabel("Timestep")
 axes[-1].legend()
 
-axes3[0,0].set_ylabel("Reward")
-axes3[1,0].set_ylabel("Safety")
-axes3[-1,-1].legend()
 
 plt.show()
