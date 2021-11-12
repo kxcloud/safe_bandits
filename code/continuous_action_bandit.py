@@ -182,11 +182,52 @@ def get_safe_ts_action(X, R, S, x_default=0, s_baseline=s_baseline, fwer_fallbac
         return X_hat
     
     if fwer_fallback:
-        alg = get_fwer_selection(num_tests=5, use_random_test_points=True)
+        alg = get_fwer_selection(num_tests=10, use_random_test_points=True)
         x_fallback = alg(X_1, R_1, S_1, x_default=x_default, s_baseline=s_baseline)
         return x_fallback
     
     return x_default
+
+def get_safe_ts_action_over_fwer(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None):
+    """ Compare expected improvement vs fallback policy """
+    X_1, R_1, S_1 = X[::2], R[::2], S[::2]
+    X_2, _, S_2 = X[1::2], R[1::2], S[1::2]
+    
+    alg = get_fwer_selection(num_tests=10, use_random_test_points=True)
+    x_fallback = alg(X_1, R_1, S_1, x_default=x_default, s_baseline=s_baseline)
+    
+    r_hat, error_bs = apply_local_bootstrap(X_1, R_1, kernel, h, 1)
+    r_hat_bs = r_hat + error_bs[0]
+    arg_of_default = np.argmin(np.abs(X_lin - x_fallback))
+    reward_diff = r_hat_bs - r_hat_bs[arg_of_default]
+    
+    bs_samples = 30
+    bs_test_results = np.zeros((bs_samples, n_grid))
+    for idx in range(bs_samples):
+        bs_indices = np.random.choice(len(X_1), size=len(X_1))
+        X_1_bs = X_1[bs_indices]
+        S_1_bs = S_1[bs_indices]
+        s_hat_bs, error_bs_bs = apply_local_bootstrap(X_1_bs, S_1_bs, kernel, h, 30)      
+        lower_ci_bs = np.quantile(s_hat_bs + error_bs_bs, s_alpha, axis=0)
+        bs_test_results[idx,:] = lower_ci_bs > s_baseline
+    estimated_pass_prob = bs_test_results.mean(axis=0)
+    
+    if plot_ax is not None:
+        plot_ax.plot(X_lin, reward_diff, label="estimated improvement", c="red")
+        plot_ax.plot(X_lin, estimated_pass_prob, label="estimated pass probability",ls="--", c="orange")
+        plot_ax.plot(X_lin, reward_diff * estimated_pass_prob, label="objective (the product)", lw=2, c="black")
+    
+    idx_max = np.argmax(reward_diff * estimated_pass_prob)
+    X_hat = X_lin[idx_max]
+    
+    s_hat, error_bs = apply_local_bootstrap(X_2, S_2, kernel, h, 50)
+    m_hat_at_X_hat_bs = s_hat[idx_max] + error_bs[:, idx_max]
+    lower_ci = np.quantile(m_hat_at_X_hat_bs, s_alpha)
+
+    if lower_ci > s_baseline:
+        return X_hat
+        
+    return x_fallback
             
 def get_fwer_selection(num_tests, use_random_test_points):
     def get_fwer_safe_action(X, R, S, x_default=0, s_baseline=s_baseline, plot_ax=None):
@@ -265,8 +306,9 @@ action_selections = {
     # "Naive single-test TS" : get_naive_safe_ts_action,
     "Naive safe set TS (unsafe)" : get_naive_safe_set_ts_action,
     "FWER safe TS (k=10, random)" : get_fwer_selection(10, True),
-    "Optimal single-test TS" : partial(get_safe_ts_action, fwer_fallback=False),
-    "Optimal single-test TS (FWER fallback)" : get_safe_ts_action
+    # "Optimal single-test TS" : partial(get_safe_ts_action, fwer_fallback=False),
+    "Optimal single-test TS (FWER fallback)" : get_safe_ts_action,
+    "Optimal single-test TS over FWER" : get_safe_ts_action_over_fwer
 }
 
 num_timesteps = 40
