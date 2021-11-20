@@ -146,7 +146,7 @@ def alg_safe_ts(bandit, alpha, baseline_policy, epsilon=0.1):
         )
         estimated_pass_prob = np.mean(test_results)
         estimated_improvement = info["phi_diff"] @ beta_hat_R_1
-        value = -estimated_improvement * estimated_pass_prob
+        value = estimated_improvement * estimated_pass_prob
         return value
     
     objective_vals = [objective(a) for a in bandit.action_space]
