@@ -37,7 +37,7 @@ class BanditEnv:
         reward_noise = np.random.normal()
         safety_noise = np.random.normal()
         return reward_noise, safety_noise
-        
+    
     def act(self, a):
         phi = self.feature_vector(self.current_x, a)
         mean_reward = np.dot(phi, self.reward_param)
@@ -58,6 +58,13 @@ class BanditEnv:
         
         self.t += 1
     
+    def get_mean_rewards(self, a):
+        """ Convenience function """
+        phi = self.feature_vector(self.current_x, a)
+        mean_reward = np.dot(phi, self.reward_param)
+        mean_safety = np.dot(phi, self.safety_param)
+        return mean_reward, mean_safety
+    
     def plot(self, figsize=(8,4)):
         targets = {"reward" : self.reward_param, "safety" : self.safety_param}
 
@@ -74,24 +81,27 @@ class BanditEnv:
     
 def polynomial_feature_binary_action(x, a, p=3):
     x_vec = np.array([x**j for j in range(p+1)])
-    combined = np.concatenate((x_vec, a*x_vec)).T
+    combined = np.concatenate(((1-a)*x_vec, a*x_vec)).T
     return combined
 
 def get_polynomial_bandit():
-    theta_reward_0 = np.array([0, 1, 0, -1])
+    theta_reward_0 = np.array([0, 2, 0, -2])*0
     theta_reward_1 = np.array([-1, 0.5, 2, 0])
     theta_reward = np.concatenate((theta_reward_0, theta_reward_1))
+    
+    theta_safety_0 = np.array([0,0,0,0])
+    theta_safety_1 = np.array([1, -1, 0, -1])
+    theta_safety = np.concatenate((theta_safety_0, theta_safety_1))
     
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
         action_space=[0,1],
         feature_vector=polynomial_feature_binary_action,
         reward_param=theta_reward,
-        safety_param=-theta_reward
+        safety_param=theta_safety
     )
     return bandit
 
-
-
 if __name__ == "__main__":
     bandit = get_polynomial_bandit()
+    bandit.plot()
