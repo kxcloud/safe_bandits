@@ -25,50 +25,22 @@ def bsample(list_of_data):
     bs_data = [data[bs_indices] for data in list_of_data]
     return bs_data
 
-def get_best_action(x, param, bandit):
+def get_best_action(x, param, bandit, available_actions=None):
+    if available_actions is None:
+        available_actions = bandit.action_space
+        
     max_value = -np.inf
     a_max = None
-    for a in bandit.action_space:    
+    for a in available_actions:    
         action_value = bandit.feature_vector(x, a) @ param
         if action_value > max_value:
             max_value = action_value
             a_max = a
     return a_max
 
-def evaluate_param_est(param_est, param, bandit, x_vals=None):
-    if x_vals is None:
-        x_vals = np.array([bandit.x_dist() for _ in range(500)])
-    a = [get_best_action(x, param_est, bandit) for x in x_vals]
-    
-    average_value = np.mean(bandit.feature_vector(x_vals, a) @ param)
-    return average_value
-        
-#%% Algorithms
+#%% Algorithm subroutines
 
-def alg_eps_greedy(bandit, alpha, epsilon=0.1):
-    X_new = bandit.sample()
-    
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space)
-    
-    beta_hat = linear_regression(np.array(bandit.phi_XA), np.array(bandit.R))
-    
-    a = get_best_action(X_new, beta_hat, bandit)
-    return a
-
-def alg_unsafe_ts(bandit, alpha, epsilon=0.1):
-    X_new = bandit.sample()
-
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space)
-    
-    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
-    beta_hat_bs = linear_regression(phi_XA_bs, R_bs)
-    
-    a = get_best_action(X_new, beta_hat_bs, bandit)
-    return a
-    
-def safe_ts_preprocess_test(phi_XA, X, S, bandit):
+def preprocess_test(phi_XA, S, bandit):
     n, p = phi_XA.shape
     phi_outer = [np.outer(phi, phi) for phi in phi_XA]
     cov_H = np.mean(phi_outer, axis=0) + np.identity(p) * 0.01   
@@ -102,9 +74,135 @@ def test_safety(x, a, a_baseline, beta_hat_S, cov, alpha, phi, n):
     
     test_stats = beta_hat_S @ phi_diff
     
-    test_results = test_stats > critical_value
+    test_results = test_stats >= critical_value
     info = {"phi_diff" : phi_diff}
     return test_results, info
+
+def test_many_actions(
+        x, 
+        a_baseline, 
+        num_actions_to_test, 
+        alpha, 
+        phi_XA, 
+        S, 
+        bandit, 
+        correct_for_multiple_testing
+    ):
+    test_vars = preprocess_test(phi_XA, S, bandit)
+    
+    if num_actions_to_test >= len(bandit.action_space):
+        actions_to_test = bandit.action_space
+    else:
+        actions_to_test = np.random.choice(
+            bandit.action_space, 
+            size=num_actions_to_test, 
+            replace=False
+        )
+        
+    if correct_for_multiple_testing : 
+        alpha_test = alpha / len(actions_to_test)    
+    else:
+        alpha_test = alpha
+    
+    safe_actions = []
+    for a in actions_to_test:
+        test_result, _ = test_safety(
+            x = x,
+            a = a,
+            a_baseline = a_baseline,
+            beta_hat_S = test_vars["beta_hat_S"],
+            cov = test_vars["cov"],
+            alpha = alpha_test,
+            phi = bandit.feature_vector,
+            n = len(phi_XA)
+        )
+        if test_result:
+            safe_actions.append(a)
+    
+    return safe_actions
+
+
+#%% Algorithms
+
+def alg_eps_greedy(bandit, alpha, epsilon=0.1):
+    X_new = bandit.sample()
+    
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space)
+    
+    beta_hat_R = linear_regression(np.array(bandit.phi_XA), np.array(bandit.R))
+    
+    a = get_best_action(X_new, beta_hat_R, bandit)
+    return a
+
+def alg_fwer_pretest_eps_greedy(bandit, alpha, baseline_policy, epsilon=0.1):
+    X_new = bandit.sample()
+    
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space)
+    
+    a_baseline = baseline_policy(X_new)
+    
+    safe_actions = test_many_actions(
+        x = X_new,
+        a_baseline = a_baseline,
+        num_actions_to_test = 5,
+        alpha = alpha,
+        phi_XA = np.array(bandit.phi_XA),
+        S = np.array(bandit.S),
+        bandit = bandit,
+        correct_for_multiple_testing=True
+    )
+    
+    # if a_baseline not in safe_actions:
+    #     breakpoint()
+    
+    if len(safe_actions) == 0:
+        return a_baseline
+    
+    beta_hat_R = linear_regression(np.array(bandit.phi_XA), np.array(bandit.R))
+    a_hat = get_best_action(X_new, beta_hat_R, bandit, available_actions=safe_actions)
+    return a_hat
+
+def alg_unsafe_ts(bandit, alpha, epsilon=0.1):
+    X_new = bandit.sample()
+
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space)
+    
+    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
+    beta_hat_R_bs = linear_regression(phi_XA_bs, R_bs)
+    
+    a = get_best_action(X_new, beta_hat_R_bs, bandit)
+    return a
+
+def alg_fwer_pretest_ts(bandit, alpha, baseline_policy, epsilon=0.1):
+    X_new = bandit.sample()
+    
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space)
+    
+    a_baseline = baseline_policy(X_new)
+    
+    safe_actions = test_many_actions(
+        x = X_new,
+        a_baseline = a_baseline,
+        num_actions_to_test=5,
+        alpha=alpha,
+        phi_XA = np.array(bandit.phi_XA),
+        S = np.array(bandit.S),
+        bandit = bandit,
+        correct_for_multiple_testing=True
+    )
+    
+    if len(safe_actions) == 0:
+        return a_baseline
+  
+    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
+    beta_hat_R_bs = linear_regression(phi_XA_bs, R_bs)
+    
+    a_hat = get_best_action(X_new, beta_hat_R_bs, bandit, available_actions=safe_actions)
+    return a_hat
 
 def alg_safe_ts(bandit, alpha, baseline_policy, epsilon=0.1):
     X_new = bandit.sample()
@@ -123,7 +221,7 @@ def alg_safe_ts(bandit, alpha, baseline_policy, epsilon=0.1):
     phi_XA_2, X_2, R_2, S_2 = phi_XA[1::2], X[1::2], R[1::2], S[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    test_vars_1 = safe_ts_preprocess_test(phi_XA_1, X_1, S_1, bandit)
+    test_vars_1 = preprocess_test(phi_XA_1, S_1, bandit)
     
     beta_hat_R_1 = linear_regression(phi_XA_1, R_1)
         
@@ -154,7 +252,7 @@ def alg_safe_ts(bandit, alpha, baseline_policy, epsilon=0.1):
     a_hat = bandit.action_space[argmax]
     
     # TEST SELECTION ON SAMPLE 2
-    test_vars_2 = safe_ts_preprocess_test(phi_XA_2, X_2, S_2, bandit)
+    test_vars_2 = preprocess_test(phi_XA_2, S_2, bandit)
         
     test_result, _ = test_safety(
         x = X_new,
@@ -171,6 +269,9 @@ def alg_safe_ts(bandit, alpha, baseline_policy, epsilon=0.1):
         return a_hat
     else:
         return a_baseline
+
+
+#%% Evaluation functions
 
 def get_best_average_safe_reward(bandit, baseline_policy, num_samples=1000):
     X = np.array([bandit.x_dist() for _ in range(num_samples)])
@@ -220,6 +321,7 @@ def evaluate(
         "mean_reward" : np.zeros((num_runs, total_timesteps)),
         "mean_safety" : np.zeros((num_runs, total_timesteps)),
         "safety_ind" : np.zeros((num_runs, total_timesteps), dtype=bool),
+        "agreed_with_baseline" : np.zeros((num_runs, total_timesteps), dtype=bool),
         "alpha" : alpha
     }
 
@@ -237,6 +339,9 @@ def evaluate(
         results["mean_reward"][run_idx] = bandit.R_mean
         results["mean_safety"][run_idx] = bandit.S_mean
         
+        agreement = baseline_policy(np.array(bandit.X)) == np.array(bandit.A)
+        results["agreed_with_baseline"][run_idx] = agreement
+        
         # Evaluate safety
         X = np.array(bandit.X)
         phi_baseline = bandit.feature_vector(X, baseline_policy(X))
@@ -252,7 +357,7 @@ def evaluate(
     return results
 
 def plot(results, axes):
-    ax_reward, ax_safety, ax_safety_ind = axes
+    ax_reward, ax_safety, ax_safety_ind, ax_agreement = axes
     
     ax_reward.plot(results["mean_reward"].mean(axis=0))
     ax_reward.set_title("Mean rewards")
@@ -260,9 +365,12 @@ def plot(results, axes):
     ax_safety.plot(results["mean_safety"].mean(axis=0))
     ax_safety.set_title("Mean safety")
     
-    ax_safety_ind.plot(results["safety_ind"].mean(axis=0), label=results["alg_name"])
+    ax_safety_ind.plot(results["safety_ind"].mean(axis=0))
     ax_safety_ind.set_title("Safety indicator")     
     ax_safety_ind.axhline(1-results["alpha"], ls="--", c="gray", lw=1)
+    
+    ax_agreement.plot(results["agreed_with_baseline"].mean(axis=0), label=results["alg_name"])
+    ax_agreement.set_title("Agreed with baseline policy")
     
     ax_reward.set_xlabel("Timestep")
 
@@ -275,7 +383,7 @@ def plot(results, axes):
     return axes
 
 def plot_many(results_list, best_safe_reward=None):
-    fig, axes = plt.subplots(nrows=1, ncols=3, sharex=True, figsize=(12,7))
+    fig, axes = plt.subplots(nrows=1, ncols=4, sharex=True, figsize=(12,7))
     
     for results in results_list:
         plot(results, axes)
@@ -293,15 +401,17 @@ bandit_constructor = BanditEnv.get_polynomial_bandit
 baseline_policy = lambda x : 0
 
 safe_ts = wrapped_partial(alg_safe_ts, baseline_policy=baseline_policy)
+safe_fwer_eps_greedy = wrapped_partial(alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy)
+safe_fwer_ts = wrapped_partial(alg_fwer_pretest_ts, baseline_policy=baseline_policy)
 
-for action_selection in [alg_eps_greedy, alg_unsafe_ts, safe_ts]:
+for action_selection in [alg_eps_greedy, safe_fwer_eps_greedy, safe_fwer_ts, safe_ts]:
     results = evaluate(
         bandit_constructor,
         action_selection,
         baseline_policy = baseline_policy,
         num_random_timesteps=10,
         num_alg_timesteps=60,
-        num_runs=2000,
+        num_runs=1000,
         alpha=0.1,    
     )
     results_list.append(results)
