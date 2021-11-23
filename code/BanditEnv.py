@@ -71,7 +71,7 @@ class BanditEnv:
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
         for idx, (label, param) in enumerate(targets.items()):
             ax = axes[idx]
-            X_grid = np.linspace(0,1, 70)
+            X_grid = np.linspace(0, 1, 70)
             for a in self.action_space:
                 phi_a = self.feature_vector(X_grid, a)
                 ax.plot(X_grid, phi_a @ param, label=f"action={a}")
@@ -79,29 +79,47 @@ class BanditEnv:
             ax.legend()
         return fig, axes
     
-def polynomial_feature_binary_action(x, a, p=3):
+def polynomial_feature(x, a, p=3, num_actions=2):
     x_vec = np.array([x**j for j in range(p+1)])
-    combined = np.concatenate(((1-a)*x_vec, a*x_vec)).T
-    return combined
+    phi_xa = np.concatenate([(a==k)*x_vec for k in range(num_actions)]).T
+    return phi_xa
 
 def get_polynomial_bandit():
     theta_reward_0 = np.array([0, 2, 0, -2])*0
     theta_reward_1 = np.array([-1, 0.5, 2, 0])
     theta_reward = np.concatenate((theta_reward_0, theta_reward_1))
     
-    theta_safety_0 = np.array([0,0,0,0])
+    theta_safety_0 = np.array([0, 0, 0, 0])
     theta_safety_1 = np.array([1, -1, 0, -1])
     theta_safety = np.concatenate((theta_safety_0, theta_safety_1))
     
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
         action_space=[0,1],
-        feature_vector=polynomial_feature_binary_action,
+        feature_vector=polynomial_feature,
         reward_param=theta_reward,
         safety_param=theta_safety
     )
     return bandit
 
+def sinusoidal_feature(x, a):
+    one = np.ones_like(x)
+    phi_xa = np.array([one, (a!=0)*one, (a!=0)*x, a, (a!=0)*np.sin(x*5 + a)]).T
+    return phi_xa
+
+def get_sinusoidal_bandit():
+    theta_reward = np.array([0, 0, 2, 1, 1])
+    theta_safety = np.array([0, 1, 2, -0.5, 0])
+   
+    bandit = BanditEnv(
+        x_dist=np.random.uniform, 
+        action_space=range(6),
+        feature_vector=sinusoidal_feature,
+        reward_param=theta_reward,
+        safety_param=theta_safety
+    )
+    return bandit
+   
 if __name__ == "__main__":
-    bandit = get_polynomial_bandit()
+    bandit = get_sinusoidal_bandit()
     bandit.plot()
