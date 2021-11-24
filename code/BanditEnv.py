@@ -71,7 +71,7 @@ class BanditEnv:
     def plot(self, figsize=(8,4), title="", reward_param=None, safety_param=None):
         reward_param = self.reward_param if reward_param is None else reward_param
         safety_param = self.safety_param if safety_param is None else safety_param
-        targets = {"reward" : reward_param, "safety" : safety_param}
+        targets = {"Mean reward" : reward_param, "Mean safety" : safety_param}
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
         for idx, (label, param) in enumerate(targets.items()):
@@ -81,6 +81,7 @@ class BanditEnv:
                 phi_a = self.feature_vector(X_grid, a)
                 ax.plot(X_grid, phi_a @ param, label=f"action={a}")
             ax.set_title(label)
+            ax.set_xlabel("Context (x)")
             ax.legend()
         plt.suptitle(title)
         return fig, axes
@@ -111,7 +112,8 @@ def get_polynomial_bandit():
 def sinusoidal_feature(x, a):
     one = np.ones_like(x)
     phi_xa = np.array(
-        [one, (a!=0)*one, (a!=0)*x, a, (a!=0)*np.sin(x*5 + a), x, x**2, np.sin(x*5), x*a]
+        [one, (a!=0)*one, (a!=0)*x, a, (a!=0)*np.sin(x*5 + a), 
+         x, x**2, np.sin(x*5), x*a]
     ).T
     return phi_xa
 
@@ -132,6 +134,9 @@ if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
+    bandit = get_polynomial_bandit()
+    bandit.plot(title="Two-action polynomial bandit")
+    
     bandit = get_sinusoidal_bandit()
     for _ in range(60):
         x = bandit.sample()
@@ -142,5 +147,5 @@ if __name__ == "__main__":
     reward_param_est = linear_regression(phi_XA, np.array(bandit.R), penalty=0.1)
     safety_param_est = linear_regression(phi_XA, np.array(bandit.S), penalty=0.1)
     
-    bandit.plot()
+    bandit.plot(title="Six-action Sinusoidal bandit")
     bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates")
