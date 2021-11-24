@@ -1,4 +1,6 @@
 import time
+import json
+import os
 import random
 from functools import partial, update_wrapper
 
@@ -10,6 +12,10 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 
 import BanditEnv
+
+code_path = os.path.dirname(os.path.realpath(__file__))
+project_path = os.path.dirname(code_path)
+data_path = os.path.join(project_path,"data")
 
 def wrapped_partial(func, *args, **kwargs):
     partial_func = partial(func, *args, **kwargs)
@@ -193,16 +199,22 @@ def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
     return a_hat
 
-def alg_safe_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
+def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, epsilon=0.1):
     a_baseline = baseline_policy(x)
 
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
-    
+        
     X = np.array(bandit.X)
     phi_XA = np.array(bandit.phi_XA)
     R = np.array(bandit.R)
     S = np.array(bandit.S)
+    
+    if random_split:
+        n = len(X)
+        shuffled_indices = np.random.choice(n, size=n, replace=False)
+        for data in X, phi_XA, R, S:
+            data[:] = data[shuffled_indices]
     
     phi_XA_1, X_1, R_1, S_1 = phi_XA[::2], X[::2], R[::2], S[::2]
     phi_XA_2, X_2, R_2, S_2 = phi_XA[1::2], X[1::2], R[1::2], S[1::2]
@@ -218,7 +230,7 @@ def alg_safe_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
     for bs_idx in range(num_bs_samples):
         phi_XA_1_bs, S_1_bs = bsample([phi_XA_1, S_1])
         beta_hats_S_bs[bs_idx,:] = linear_regression(phi_XA_1_bs, S_1_bs)
-    
+        
     def objective(a):
         test_results, info = test_safety(
             x = x,
@@ -258,13 +270,15 @@ def alg_safe_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
     else:
         return a_baseline
 
-def alg_safe_ts_fwer_fallback(x, bandit, alpha, baseline_policy, epsilon=0.1):
+def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct_alpha, epsilon=0.1):
     a_baseline = baseline_policy(x)
+
+    alpha = alpha/2 if correct_alpha else alpha
 
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
-    a_safe_ts = alg_safe_ts(x, bandit, alpha, baseline_policy, epsilon=0)
+    a_safe_ts = alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split=True, epsilon=0)
     
     if a_safe_ts == a_baseline:
         return alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, epsilon=0)
@@ -317,7 +331,7 @@ def alg_full_sample_objective(x, bandit, alpha, baseline_policy, epsilon=0.1):
 
 #%% Evaluation functions
 
-def get_best_average_safe_reward(bandit, baseline_policy, num_samples=1000):
+def get_best_average_safe_reward(bandit, baseline_policy, num_samples=2000):
     X = np.array([bandit.x_dist() for _ in range(num_samples)])
         
     phi_baseline = bandit.feature_vector(X, baseline_policy(X))
@@ -346,6 +360,7 @@ def get_best_average_safe_reward(bandit, baseline_policy, num_samples=1000):
     return best_average_safe_reward
 
 def evaluate(
+        alg_label,
         bandit_constructor,
         action_selection, # TODO: rename to clarify difference in type to baseline?
         baseline_policy,
@@ -359,6 +374,8 @@ def evaluate(
 
     total_timesteps = num_random_timesteps + num_alg_timesteps
     results = {
+        "bandit_name" : bandit_constructor().__class__.__name__,
+        "alg_label" : alg_label,
         "alg_name" : action_selection.__name__,
         "num_random_timesteps" : num_random_timesteps,
         "num_alg_timesteps" : num_alg_timesteps,
@@ -366,7 +383,8 @@ def evaluate(
         "mean_safety" : np.zeros((num_runs, total_timesteps)),
         "safety_ind" : np.zeros((num_runs, total_timesteps), dtype=bool),
         "agreed_with_baseline" : np.zeros((num_runs, total_timesteps), dtype=bool),
-        "alpha" : alpha
+        "alpha" : alpha,
+        "duration" : None
     }
 
     for run_idx in range(num_runs):
@@ -392,8 +410,21 @@ def evaluate(
         phi_baseline = bandit.feature_vector(X, baseline_policy(X))
         safety_baseline = phi_baseline @ bandit.safety_param
         results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline
-            
+
+    best_safe_reward = get_best_average_safe_reward(
+        bandit_constructor(), baseline_policy
+    )            
+
     duration = (time.time() - start_time)/60
+    results["duration"] = duration
+    
+    results["best_safe_reward"] = best_safe_reward
+    
+    # Make JSON-compatible
+    for label, item in results.items():
+        if type(item) is np.ndarray:
+            results[label] = item.tolist()
+    
     if print_time:
         print(
             f"Evaluated {action_selection.__name__} {num_runs}"
@@ -401,70 +432,61 @@ def evaluate(
         )
     return results
 
-def plot(results, axes):
-    ax_reward, ax_safety, ax_safety_ind, ax_agreement = axes
-    
-    ax_reward.plot(results["mean_reward"].mean(axis=0))
-    ax_reward.set_title("Mean rewards")
-    
-    ax_safety.plot(results["mean_safety"].mean(axis=0))
-    ax_safety.set_title("Mean safety")
-    
-    ax_safety_ind.plot(results["safety_ind"].mean(axis=0))
-    ax_safety_ind.set_title("Safety indicator")     
-    ax_safety_ind.axhline(1-results["alpha"], ls="--", c="gray", lw=1)
-    
-    ax_agreement.plot(results["agreed_with_baseline"].mean(axis=0), label=results["alg_name"])
-    ax_agreement.set_title("Agreed with baseline policy")
-    
-    ax_reward.set_xlabel("Timestep")
-
-    # Label random timesteps
-    for ax in axes:
-        ax.axvline(
-            x=results["num_random_timesteps"], 
-            alpha=0.5, c="grey", lw=1, ymax=0.02
-        )
-    return axes
-
-def plot_many(results_list, best_safe_reward=None):
-    fig, axes = plt.subplots(nrows=1, ncols=4, sharex=True, figsize=(12,7))
-    
-    for results in results_list:
-        plot(results, axes)
-        
-    if best_safe_reward is not None:
-        axes[0].axhline(best_safe_reward, ls=":", c="black", lw=1)
-        
-    plt.legend(loc='best', bbox_to_anchor=(0.5, 0., 0.5, 0.5))
-    plt.show()
-
+def save_json(data, filename):
+    with open(os.path.join(data_path, filename), 'w') as f:
+        json.dump(data, f)
+            
 #%% Evaluation
-results_list = []
-
-bandit_constructor = BanditEnv.get_sinusoidal_bandit
 baseline_policy = lambda x : 0
 
-safe_ts = wrapped_partial(alg_safe_ts, baseline_policy=baseline_policy)
-safe_fwer_eps_greedy = wrapped_partial(alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy)
-safe_fwer_ts = wrapped_partial(alg_fwer_pretest_ts, baseline_policy=baseline_policy)
-safe_ts_fwer_fallback = wrapped_partial(alg_safe_ts_fwer_fallback, baseline_policy=baseline_policy)
-full_sample_objective = wrapped_partial(alg_full_sample_objective, baseline_policy=baseline_policy)
+alg_dict = {
+    "Unsafe e-greedy" : alg_eps_greedy,
+    "Unsafe TS" : alg_unsafe_ts,
+    "FWER pretest: e-greedy" : wrapped_partial(alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy),
+    "FWER pretest: TS" :  wrapped_partial(alg_fwer_pretest_ts, baseline_policy=baseline_policy),
+    "Propose-test TS" : wrapped_partial(alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy),
+    "Propose-test TS (random split)" : wrapped_partial(alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy),
+    "Propose-test TS (unsafe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=False, baseline_policy=baseline_policy),
+    "Propose-test TS (safe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=True, baseline_policy=baseline_policy),
+    "Full-sample proposal objective" : wrapped_partial(alg_full_sample_objective, baseline_policy=baseline_policy),
+}
 
-for action_selection in [safe_fwer_eps_greedy, safe_ts, full_sample_objective]: #[alg_eps_greedy, safe_fwer_eps_greedy, safe_fwer_ts, safe_ts, safe_ts_fwer_fallback]:
+results_dict = {}
+for alg_label, action_selection in alg_dict.items():
     results = evaluate(
-        bandit_constructor,
+        alg_label,
+        BanditEnv.get_sinusoidal_bandit,
         action_selection,
         baseline_policy = baseline_policy,
         num_random_timesteps=10,
-        num_alg_timesteps=60,
-        num_runs=300,
+        num_alg_timesteps=500,
+        num_runs=500,
         alpha=0.1,    
     )
-    results_list.append(results)
+    results_dict[alg_label] = results
 
-best_safe_reward = get_best_average_safe_reward(bandit_constructor(), baseline_policy)
+total_duration = sum([results["duration"] for results in results_dict.values()])
+print(f"Total duration: {total_duration:0.02f} minutes.")
 
+save_json(results_dict, "2021_11_24_sinusoidal_bandit.json")
 
-#%%
-plot_many(results_list, best_safe_reward)
+#%% 
+
+results_dict = {}
+for alg_label, action_selection in alg_dict.items():
+    results = evaluate(
+        alg_label,
+        BanditEnv.get_polynomial_bandit,
+        action_selection,
+        baseline_policy = baseline_policy,
+        num_random_timesteps=10,
+        num_alg_timesteps=500,
+        num_runs=500,
+        alpha=0.1,    
+    )
+    results_dict[alg_label] = results
+
+total_duration = sum([results["duration"] for results in results_dict.values()])
+print(f"Total duration: {total_duration:0.02f} minutes.")
+
+save_json(results_dict, "2021_11_24_polynomial_bandit.json")
