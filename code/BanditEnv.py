@@ -33,9 +33,12 @@ class BanditEnv:
         self.current_x = self.x_dist()
         return self.current_x
     
-    def _get_noise(self, a):
-        reward_noise = np.random.normal()
-        safety_noise = np.random.normal()
+    def _get_noise(self, a, std_dev=2, correlation=0.8):
+        assert np.abs(correlation) <= 1
+        cov_matrix = std_dev * np.array([[1, correlation], [correlation, 1]])
+        reward_noise, safety_noise = np.random.multivariate_normal(
+            np.zeros(2), cov_matrix
+        )
         return reward_noise, safety_noise
     
     def act(self, a):
@@ -65,8 +68,10 @@ class BanditEnv:
         mean_safety = np.dot(phi, self.safety_param)
         return mean_reward, mean_safety
     
-    def plot(self, figsize=(8,4)):
-        targets = {"reward" : self.reward_param, "safety" : self.safety_param}
+    def plot(self, figsize=(8,4), title="", reward_param=None, safety_param=None):
+        reward_param = self.reward_param if reward_param is None else reward_param
+        safety_param = self.safety_param if safety_param is None else safety_param
+        targets = {"reward" : reward_param, "safety" : safety_param}
 
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
         for idx, (label, param) in enumerate(targets.items()):
@@ -77,6 +82,7 @@ class BanditEnv:
                 ax.plot(X_grid, phi_a @ param, label=f"action={a}")
             ax.set_title(label)
             ax.legend()
+        plt.suptitle(title)
         return fig, axes
     
 def polynomial_feature(x, a, p=3, num_actions=2):
@@ -104,12 +110,14 @@ def get_polynomial_bandit():
 
 def sinusoidal_feature(x, a):
     one = np.ones_like(x)
-    phi_xa = np.array([one, (a!=0)*one, (a!=0)*x, a, (a!=0)*np.sin(x*5 + a)]).T
+    phi_xa = np.array(
+        [one, (a!=0)*one, (a!=0)*x, a, (a!=0)*np.sin(x*5 + a), x, x**2, np.sin(x*5), x*a]
+    ).T
     return phi_xa
 
 def get_sinusoidal_bandit():
-    theta_reward = np.array([0, 0, 2, 1, 1])
-    theta_safety = np.array([0, 1, 2, -0.5, 0])
+    theta_reward = np.array([0, 0, 2,    1, 1, 0, 0, 0, 0])
+    theta_safety = np.array([0, 1, 2, -0.5, 0, 0, 0, 0, 0])
    
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
@@ -121,5 +129,18 @@ def get_sinusoidal_bandit():
     return bandit
    
 if __name__ == "__main__":
+    def linear_regression(x_mat, y, penalty=0.01):
+        return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
+    
     bandit = get_sinusoidal_bandit()
+    for _ in range(60):
+        x = bandit.sample()
+        a = np.random.choice(bandit.action_space)
+        bandit.act(a)
+    
+    phi_XA = np.array(bandit.phi_XA)
+    reward_param_est = linear_regression(phi_XA, np.array(bandit.R), penalty=0.1)
+    safety_param_est = linear_regression(phi_XA, np.array(bandit.S), penalty=0.1)
+    
     bandit.plot()
+    bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates")
