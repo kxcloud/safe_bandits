@@ -34,8 +34,11 @@ def plot(results, axes, moving_avg_window=None, color=None):
         )
     return axes
 
-def plot_many(results_list, colors, moving_avg_window=None, title=""):
+def plot_many(results_list, colors=None, moving_avg_window=None, title=""):
     fig, axes = plt.subplots(nrows=1, ncols=4, sharex=True, figsize=(11,3.75))
+    
+    if colors is None:
+        colors = [None]*len(results_list)
     
     for results, color in zip(results_list, colors):
         plot(results, axes, moving_avg_window, color)
@@ -43,7 +46,8 @@ def plot_many(results_list, colors, moving_avg_window=None, title=""):
     axes[-1].legend()
     
     # WARNING: this assumes best_safe_reward is the same for all runs
-    axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)         
+    axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)       
+    axes[0].axhline(results["baseline_reward"], ls=":", c="black", lw=1)
         
     plt.legend(loc='best', bbox_to_anchor=(0.5, 0., 0.5, 0.5))
     plt.suptitle(title)
