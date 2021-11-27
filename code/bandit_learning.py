@@ -46,7 +46,7 @@ def get_best_action(x, param, bandit, available_actions=None):
 
 #%% Algorithm subroutines
 
-def preprocess_test(phi_XA, S, bandit):
+def estimate_safety_param_and_covariance(phi_XA, S):
     n, p = phi_XA.shape
     phi_outer = [np.outer(phi, phi) for phi in phi_XA]
     cov_H = np.mean(phi_outer, axis=0) + np.identity(p) * 0.01   
@@ -61,12 +61,7 @@ def preprocess_test(phi_XA, S, bandit):
     )
     cov = cov_H_inv @ cov_G @ cov_H_inv
         
-    test_vars = {
-        "beta_hat_S": beta_hat_S,
-        "cov": cov,
-    }
-    
-    return test_vars
+    return beta_hat_S, cov
 
 def test_safety(x, a, a_baseline, beta_hat_S, cov, alpha, phi, n):
     """ 
@@ -94,21 +89,15 @@ def test_many_actions(
         bandit, 
         correct_for_multiple_testing
     ):
-    test_vars = preprocess_test(phi_XA, S, bandit)
+    beta_hat_S, cov = estimate_safety_param_and_covariance(phi_XA, S)
     
-    if num_actions_to_test >= len(bandit.action_space):
-        actions_to_test = bandit.action_space
-    else:
-        actions_to_test = np.random.choice(
-            bandit.action_space, 
-            size=num_actions_to_test, 
-            replace=False
-        )
+    num_actions_to_test = min(num_actions_to_test, len(bandit.action_space))
+    actions_to_test = np.random.choice(
+        bandit.action_space, size=num_actions_to_test, replace=False
+    )
         
-    if correct_for_multiple_testing : 
-        alpha_test = alpha / len(actions_to_test)    
-    else:
-        alpha_test = alpha
+    if correct_for_multiple_testing: 
+        alpha = alpha/len(actions_to_test)    
     
     safe_actions = []
     for a in actions_to_test:
@@ -116,9 +105,9 @@ def test_many_actions(
             x = x,
             a = a,
             a_baseline = a_baseline,
-            beta_hat_S = test_vars["beta_hat_S"],
-            cov = test_vars["cov"],
-            alpha = alpha_test,
+            beta_hat_S = beta_hat_S,
+            cov = cov,
+            alpha = alpha,
             phi = bandit.feature_vector,
             n = len(phi_XA)
         )
@@ -126,6 +115,39 @@ def test_many_actions(
             safe_actions.append(a)
     
     return safe_actions
+
+def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temperature=1):
+    beta_hat_S, cov = estimate_safety_param_and_covariance(phi_XA, S)
+    
+    phi_XA_bs, R_bs = bsample([phi_XA, R])    
+    beta_hat_R_bs = linear_regression(phi_XA_bs, R_bs)
+        
+    num_bs_samples = 50
+    beta_hats_S_bs = np.zeros((num_bs_samples, len(beta_hat_S)))
+    for bs_idx in range(num_bs_samples):
+        phi_XA_bs, S_bs = bsample([phi_XA, S])
+        beta_hats_S_bs[bs_idx,:] = linear_regression(phi_XA_bs, S_bs)
+    
+    def objective(a):
+        test_results, info = test_safety(
+            x = x,
+            a = a,
+            a_baseline = a_baseline,
+            beta_hat_S = beta_hats_S_bs,
+            cov = cov,
+            alpha = alpha,
+            phi = bandit.feature_vector,
+            n = len(R)
+        )
+        estimated_pass_prob = np.mean(test_results)
+        estimated_improvement = info["phi_diff"] @ beta_hat_R_bs
+        value = estimated_improvement * estimated_pass_prob**temperature
+        return value
+    
+    objective_vals = [objective(a) for a in bandit.action_space]
+    argmax = np.argmax(objective_vals)
+    a_hat = bandit.action_space[argmax]
+    return a_hat
 
 
 #%% Algorithms
@@ -216,53 +238,24 @@ def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, epsilon
         for data in X, phi_XA, R, S:
             data[:] = data[shuffled_indices]
     
-    phi_XA_1, X_1, R_1, S_1 = phi_XA[::2], X[::2], R[::2], S[::2]
-    phi_XA_2, X_2, R_2, S_2 = phi_XA[1::2], X[1::2], R[1::2], S[1::2]
+    phi_XA_1, R_1, S_1 = phi_XA[::2], R[::2], S[::2]
+    phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    test_vars_1 = preprocess_test(phi_XA_1, S_1, bandit)
-    
-    phi_XA_1_bs, R_1_bs = bsample([phi_XA_1, R_1])    
-    beta_hat_R_1_bs = linear_regression(phi_XA_1_bs, R_1_bs)
-        
-    num_bs_samples = 50
-    beta_hats_S_bs = np.zeros((num_bs_samples, len(test_vars_1["beta_hat_S"])))
-    for bs_idx in range(num_bs_samples):
-        phi_XA_1_bs, S_1_bs = bsample([phi_XA_1, S_1])
-        beta_hats_S_bs[bs_idx,:] = linear_regression(phi_XA_1_bs, S_1_bs)
-        
-    def objective(a):
-        test_results, info = test_safety(
-            x = x,
-            a = a,
-            a_baseline = a_baseline,
-            beta_hat_S = beta_hats_S_bs,
-            cov = test_vars_1["cov"],
-            alpha = alpha,
-            phi = bandit.feature_vector,
-            n = len(X_1)
-        )
-        estimated_pass_prob = np.mean(test_results)
-        estimated_improvement = info["phi_diff"] @ beta_hat_R_1_bs
-        value = estimated_improvement * estimated_pass_prob
-        return value
-    
-    objective_vals = [objective(a) for a in bandit.action_space]
-    argmax = np.argmax(objective_vals)
-    a_hat = bandit.action_space[argmax]
+    a_hat = optimize_proposal_objective(x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha)
     
     # TEST SELECTION ON SAMPLE 2
-    test_vars_2 = preprocess_test(phi_XA_2, S_2, bandit)
+    beta_hat_S_2, cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
         
     test_result, _ = test_safety(
         x = x,
         a = a_hat,
         a_baseline = a_baseline,
-        beta_hat_S = test_vars_2["beta_hat_S"],
-        cov = test_vars_2["cov"],
+        beta_hat_S = beta_hat_S_2,
+        cov = cov_2,
         alpha = alpha,
         phi = bandit.feature_vector,
-        n = len(X_2)
+        n = len(S_2)
     )
 
     if test_result:
@@ -284,50 +277,6 @@ def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct
         return alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, epsilon=0)
     else:
         return a_safe_ts
-
-def alg_full_sample_objective(x, bandit, alpha, baseline_policy, epsilon=0.1):
-    a_baseline = baseline_policy(x)
-
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space)
-    
-    X = np.array(bandit.X)
-    phi_XA = np.array(bandit.phi_XA)
-    R = np.array(bandit.R)
-    S = np.array(bandit.S)
-      
-    # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    test_vars = preprocess_test(phi_XA, S, bandit)
-    
-    phi_XA_bs, R_bs = bsample([phi_XA, R])    
-    beta_hat_R_bs = linear_regression(phi_XA_bs, R_bs)
-        
-    num_bs_samples = 50
-    beta_hats_S_bs = np.zeros((num_bs_samples, len(test_vars["beta_hat_S"])))
-    for bs_idx in range(num_bs_samples):
-        phi_XA_bs, S_bs = bsample([phi_XA, S])
-        beta_hats_S_bs[bs_idx,:] = linear_regression(phi_XA_bs, S_bs)
-    
-    def objective(a):
-        test_results, info = test_safety(
-            x = x,
-            a = a,
-            a_baseline = a_baseline,
-            beta_hat_S = beta_hats_S_bs,
-            cov = test_vars["cov"],
-            alpha = alpha,
-            phi = bandit.feature_vector,
-            n = len(X)
-        )
-        estimated_pass_prob = np.mean(test_results)
-        estimated_improvement = info["phi_diff"] @ beta_hat_R_bs
-        value = estimated_improvement * estimated_pass_prob
-        return value
-    
-    objective_vals = [objective(a) for a in bandit.action_space]
-    argmax = np.argmax(objective_vals)
-    a_hat = bandit.action_space[argmax]
-    return a_hat
 
 #%% Evaluation functions
 
@@ -448,45 +397,24 @@ alg_dict = {
     "Propose-test TS (random split)" : wrapped_partial(alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy),
     "Propose-test TS (unsafe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=False, baseline_policy=baseline_policy),
     "Propose-test TS (safe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=True, baseline_policy=baseline_policy),
-    "Full-sample proposal objective" : wrapped_partial(alg_full_sample_objective, baseline_policy=baseline_policy),
 }
 
-results_dict = {}
-for alg_label, action_selection in alg_dict.items():
-    results = evaluate(
-        alg_label,
-        BanditEnv.get_sinusoidal_bandit,
-        action_selection,
-        baseline_policy = baseline_policy,
-        num_random_timesteps=10,
-        num_alg_timesteps=500,
-        num_runs=500,
-        alpha=0.1,    
-    )
-    results_dict[alg_label] = results
-
-total_duration = sum([results["duration"] for results in results_dict.values()])
-print(f"Total duration: {total_duration:0.02f} minutes.")
-
-save_json(results_dict, "2021_11_24_sinusoidal_bandit.json")
-
-#%% 
-
-results_dict = {}
-for alg_label, action_selection in alg_dict.items():
-    results = evaluate(
-        alg_label,
-        BanditEnv.get_polynomial_bandit,
-        action_selection,
-        baseline_policy = baseline_policy,
-        num_random_timesteps=10,
-        num_alg_timesteps=500,
-        num_runs=500,
-        alpha=0.1,    
-    )
-    results_dict[alg_label] = results
-
-total_duration = sum([results["duration"] for results in results_dict.values()])
-print(f"Total duration: {total_duration:0.02f} minutes.")
-
-save_json(results_dict, "2021_11_24_polynomial_bandit.json")
+if __name__ == "__main__":
+    results_dict = {}
+    for alg_label, action_selection in alg_dict.items():
+        results = evaluate(
+            alg_label,
+            BanditEnv.get_sinusoidal_bandit,
+            action_selection,
+            baseline_policy = baseline_policy,
+            num_random_timesteps=10,
+            num_alg_timesteps=50,
+            num_runs=30,
+            alpha=0.1,    
+        )
+        results_dict[alg_label] = results
+    
+    total_duration = sum([results["duration"] for results in results_dict.values()])
+    print(f"Total duration: {total_duration:0.02f} minutes.")
+    
+    # save_json(results_dict, "2021_11_24_sinusoidal_bandit.json")

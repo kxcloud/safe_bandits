@@ -59,41 +59,42 @@ def read_and_process_json(filename):
                 result[key] = np.array(item)
     
     return results_dict
-                
-#%% Plot data
-filename1 = "2021_11_24_sinusoidal_bandit.json"
-filename2 = "2021_11_24_polynomial_bandit.json"
-results1 = read_and_process_json(filename1)
-results2 = read_and_process_json(filename2)
 
-#%%
-runs = [
- 'Unsafe e-greedy',
- 'Unsafe TS',
- 'FWER pretest: e-greedy',
- 'FWER pretest: TS',
- 'Propose-test TS',
- 'Propose-test TS (random split)',
- 'Propose-test TS (unsafe FWER fallback)',
- 'Propose-test TS (safe FWER fallback)',
- 'Full-sample proposal objective'
-]
-
-colors = {run_name: f"C{idx}" for idx, run_name in enumerate(runs)}
-
-subset = [
-  # 'Unsafe e-greedy',
-  # 'Unsafe TS',
-  'FWER pretest: e-greedy',
-  'FWER pretest: TS',
-  'Propose-test TS',
-  'Propose-test TS (random split)',
-   # 'Propose-test TS (unsafe FWER fallback)',
-  'Propose-test TS (safe FWER fallback)',
-   # 'Full-sample proposal objective'
-]
-
-colors = [colors[key] for key in subset]
-title = ""
-plot_many([results1[key] for key in subset], moving_avg_window=20, colors=colors, title=title+" Sinusoidal bandit")
-plot_many([results2[key] for key in subset], moving_avg_window=20, colors=colors, title=title+" Polynomial bandit")
+if __name__ == "__main__":                
+    #%% Plot data
+    filename1 = "2021_11_24_sinusoidal_bandit.json"
+    filename2 = "2021_11_24_polynomial_bandit.json"
+    results1 = read_and_process_json(filename1)
+    results2 = read_and_process_json(filename2)
+    
+    #%%
+    runs = [
+     'Unsafe e-greedy',
+     'Unsafe TS',
+     'FWER pretest: e-greedy',
+     'FWER pretest: TS',
+     'Propose-test TS',
+     'Propose-test TS (random split)',
+     'Propose-test TS (unsafe FWER fallback)',
+     'Propose-test TS (safe FWER fallback)',
+     'Full-sample proposal objective'
+    ]
+    
+    colors = {run_name: f"C{idx}" for idx, run_name in enumerate(runs)}
+    
+    subset = [
+      # 'Unsafe e-greedy',
+      # 'Unsafe TS',
+      'FWER pretest: e-greedy',
+      'FWER pretest: TS',
+      'Propose-test TS',
+      'Propose-test TS (random split)',
+       # 'Propose-test TS (unsafe FWER fallback)',
+      'Propose-test TS (safe FWER fallback)',
+       # 'Full-sample proposal objective'
+    ]
+    
+    colors = [colors[key] for key in subset]
+    title = ""
+    plot_many([results1[key] for key in subset], moving_avg_window=20, colors=colors, title=title+" Sinusoidal bandit")
+    plot_many([results2[key] for key in subset], moving_avg_window=20, colors=colors, title=title+" Polynomial bandit")
