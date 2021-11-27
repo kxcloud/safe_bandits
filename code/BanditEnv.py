@@ -1,3 +1,5 @@
+from functools import partial
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -9,13 +11,18 @@ class BanditEnv:
             action_space,
             feature_vector,
             reward_param,
-            safety_param
+            safety_param,
+            outcome_std_dev,
+            outcome_correlation
         ):
         self.x_dist = x_dist
         self.action_space = action_space
         self.feature_vector = feature_vector
         self.reward_param = reward_param
         self.safety_param = safety_param
+        self.outcome_covariance = outcome_std_dev * np.array(
+            [[1, outcome_correlation], [outcome_correlation, 1]]
+        )
         
         self.X = []
         self.phi_XA = []
@@ -33,11 +40,9 @@ class BanditEnv:
         self.current_x = self.x_dist()
         return self.current_x
     
-    def _get_noise(self, a, std_dev=2, correlation=0.8):
-        assert np.abs(correlation) <= 1
-        cov_matrix = std_dev * np.array([[1, correlation], [correlation, 1]])
+    def _get_noise(self, a):
         reward_noise, safety_noise = np.random.multivariate_normal(
-            np.zeros(2), cov_matrix
+            np.zeros(2), self.outcome_covariance
         )
         return reward_noise, safety_noise
     
@@ -86,7 +91,7 @@ class BanditEnv:
         plt.suptitle(title)
         return fig, axes
     
-def polynomial_feature(x, a, p=3, num_actions=2):
+def polynomial_feature(x, a, p, num_actions):
     x_vec = np.array([x**j for j in range(p+1)])
     phi_xa = np.concatenate([(a==k)*x_vec for k in range(num_actions)]).T
     return phi_xa
@@ -103,11 +108,32 @@ def get_polynomial_bandit():
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
         action_space=[0,1],
-        feature_vector=polynomial_feature,
+        feature_vector=partial(polynomial_feature, p=3, num_actions=2),
         reward_param=theta_reward,
-        safety_param=theta_safety
+        safety_param=theta_safety,
+        outcome_std_dev=2,
+        outcome_correlation=-0.8
     )
     return bandit
+
+def get_random_polynomial_bandit(num_actions):
+    p = 3
+    
+    param_size = (p+1)*num_actions
+    theta_reward = np.random.normal(size=param_size)
+    theta_safety = np.random.normal(size=param_size)
+    
+    bandit = BanditEnv(
+        x_dist=np.random.uniform, 
+        action_space=range(num_actions),
+        feature_vector=partial(polynomial_feature, p=p, num_actions=num_actions),
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=2,
+        outcome_correlation=0
+    )
+    return bandit
+    
 
 def sinusoidal_feature(x, a):
     one = np.ones_like(x)
@@ -126,7 +152,9 @@ def get_sinusoidal_bandit():
         action_space=range(6),
         feature_vector=sinusoidal_feature,
         reward_param=theta_reward,
-        safety_param=theta_safety
+        safety_param=theta_safety,
+        outcome_std_dev=2,
+        outcome_correlation=-0.8
     )
     return bandit
    
