@@ -117,7 +117,9 @@ def test_many_actions(
     
     return safe_actions
 
-def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temperature):
+def get_expected_improvement_objective(
+        x, a_baseline, phi_XA, R, S, bandit, alpha, temperature
+    ):
     """ 
     NOTE: currently bootstraps only the reward
     """
@@ -132,7 +134,7 @@ def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temp
         phi_XA_bs, S_bs = bsample([phi_XA, S])
         beta_hats_S_bs[bs_idx,:] = linear_regression(phi_XA_bs, S_bs)
     
-    def objective(a):
+    def expected_improvement(a):
         test_results, info = test_safety(
             x = x,
             a = a,
@@ -148,10 +150,13 @@ def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temp
         value = estimated_improvement * estimated_pass_prob**temperature
         return value
     
-    objective_vals = [objective(a) for a in bandit.action_space]
-    argmax = np.argmax(objective_vals)
-    a_hat = bandit.action_space[argmax]
-    return a_hat
+    return expected_improvement
+
+def maximize(objective, input_values):
+    objective_vals = [objective(val) for val in input_values]
+    argmax_idx = np.argmax(objective_vals)
+    argmax = input_values[argmax_idx]
+    return argmax
 
 
 #%% Algorithms
@@ -246,9 +251,11 @@ def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objecti
     phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    a_hat = optimize_proposal_objective(
+    expected_improvement = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha, objective_temperature
     )
+    
+    a_hat = maximize(expected_improvement, bandit.action_space)
     
     # TEST SELECTION ON SAMPLE 2
     beta_hat_S_2, cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
@@ -269,7 +276,7 @@ def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objecti
     else:
         return a_baseline
 
-def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct_alpha, epsilon=0.1):
+def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct_alpha, num_actions_to_test, epsilon=0.1):
     a_baseline = baseline_policy(x)
 
     alpha = alpha/2 if correct_alpha else alpha
@@ -277,10 +284,14 @@ def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
-    a_safe_ts = alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split=True, epsilon=0)
+    a_safe_ts = alg_propose_test_ts(
+        x, bandit, alpha, baseline_policy, random_split=True, objective_temperature=1, epsilon=0
+    )
     
     if a_safe_ts == a_baseline:
-        return alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, epsilon=0)
+        return alg_fwer_pretest_eps_greedy(
+            x, bandit, alpha, baseline_policy, num_actions_to_test=num_actions_to_test, epsilon=0
+        )
     else:
         return a_safe_ts
 
@@ -317,7 +328,7 @@ def get_reward_baselines(bandit, baseline_policy, num_samples=2000):
 def evaluate(
         alg_label,
         bandit_constructor,
-        action_selection, # TODO: rename to clarify difference in type to baseline?
+        learning_algorithm,
         baseline_policy,
         num_random_timesteps,
         num_alg_timesteps,
@@ -331,7 +342,7 @@ def evaluate(
     results = {
         "bandit_name" : bandit_constructor().__class__.__name__,
         "alg_label" : alg_label,
-        "alg_name" : action_selection.__name__,
+        "alg_name" : learning_algorithm.__name__,
         "num_random_timesteps" : num_random_timesteps,
         "num_alg_timesteps" : num_alg_timesteps,
         "mean_reward" : np.zeros((num_runs, total_timesteps)),
@@ -351,7 +362,7 @@ def evaluate(
 
         for t in range(num_alg_timesteps):
             x = bandit.sample()
-            a = action_selection(x=x, bandit=bandit, alpha=alpha)
+            a = learning_algorithm(x=x, bandit=bandit, alpha=alpha)
             bandit.act(a)
             
         results["mean_reward"][run_idx] = bandit.R_mean
@@ -377,7 +388,7 @@ def evaluate(
     
     if print_time:
         print(
-            f"Evaluated {action_selection.__name__} {num_runs}"
+            f"Evaluated {learning_algorithm.__name__} {num_runs}"
             f" times in {duration:0.02f} minutes."
         )
     return results
@@ -402,25 +413,25 @@ baseline_policy = lambda x : 0
 alg_dict = {
     "Unsafe e-greedy" : alg_eps_greedy,
     "Unsafe TS" : alg_unsafe_ts,
-    "FWER pretest: e-greedy" : wrapped_partial(alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy),
-    "FWER pretest: TS" :  wrapped_partial(alg_fwer_pretest_ts, baseline_policy=baseline_policy),
-    "Propose-test TS" : wrapped_partial(alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy),
-    "Propose-test TS (random split)" : wrapped_partial(alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy),
-    "Propose-test TS (unsafe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=False, baseline_policy=baseline_policy),
-    "Propose-test TS (safe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=True, baseline_policy=baseline_policy),
+    "FWER pretest: e-greedy" : wrapped_partial(alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy, num_actions_to_test=5),
+    "FWER pretest: TS" :  wrapped_partial(alg_fwer_pretest_ts, baseline_policy=baseline_policy, num_actions_to_test=5),
+    "Propose-test TS" : wrapped_partial(alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy, objective_temperature=1),
+    "Propose-test TS (random split)" : wrapped_partial(alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy, objective_temperature=1),
+    "Propose-test TS (unsafe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=False, num_actions_to_test=5, baseline_policy=baseline_policy),
+    "Propose-test TS (safe FWER fallback)" : wrapped_partial(alg_propose_test_ts_fwer_fallback, correct_alpha=True, num_actions_to_test=5, baseline_policy=baseline_policy),
 }
 
 if __name__ == "__main__":
     results_dict = {}
-    for alg_label, action_selection in alg_dict.items():
+    for alg_label, learning_algorithm in alg_dict.items():
         results = evaluate(
             alg_label,
             BanditEnv.get_sinusoidal_bandit,
-            action_selection,
+            learning_algorithm,
             baseline_policy = baseline_policy,
             num_random_timesteps=10,
-            num_alg_timesteps=10,
-            num_runs=3,
+            num_alg_timesteps=100,
+            num_runs=300,
             alpha=0.1,    
         )
         results_dict[alg_label] = results
@@ -428,4 +439,4 @@ if __name__ == "__main__":
     total_duration = sum([results["duration"] for results in results_dict.values()])
     print(f"Total duration: {total_duration:0.02f} minutes.")
     
-    save_to_json(results_dict, "test.json")
+    save_to_json(results_dict, "2021_11_27_replicate_sinusoidal.json")
