@@ -1,3 +1,4 @@
+import copy
 import time
 import json
 import os
@@ -97,7 +98,7 @@ def test_many_actions(
     )
         
     if correct_for_multiple_testing: 
-        alpha = alpha/len(actions_to_test)    
+        alpha = alpha/num_actions_to_test  
     
     safe_actions = []
     for a in actions_to_test:
@@ -116,7 +117,10 @@ def test_many_actions(
     
     return safe_actions
 
-def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temperature=1):
+def optimize_proposal_objective(x, a_baseline, phi_XA, R, S, bandit, alpha, temperature):
+    """ 
+    NOTE: currently bootstraps only the reward
+    """
     beta_hat_S, cov = estimate_safety_param_and_covariance(phi_XA, S)
     
     phi_XA_bs, R_bs = bsample([phi_XA, R])    
@@ -161,7 +165,7 @@ def alg_eps_greedy(x, bandit, alpha, epsilon=0.1):
     a = get_best_action(x, beta_hat_R, bandit)
     return a
 
-def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, epsilon=0.1):   
+def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon=0.1):   
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -170,7 +174,7 @@ def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, epsilon=0.1):
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
-        num_actions_to_test = 5,
+        num_actions_to_test = num_actions_to_test,
         alpha = alpha,
         phi_XA = np.array(bandit.phi_XA),
         S = np.array(bandit.S),
@@ -195,7 +199,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon=0.1):
     a = get_best_action(x, beta_hat_R_bs, bandit)
     return a
 
-def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
+def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon=0.1):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -204,7 +208,7 @@ def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
-        num_actions_to_test=5,
+        num_actions_to_test=num_actions_to_test,
         alpha=alpha,
         phi_XA = np.array(bandit.phi_XA),
         S = np.array(bandit.S),
@@ -221,7 +225,7 @@ def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, epsilon=0.1):
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
     return a_hat
 
-def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, epsilon=0.1):
+def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objective_temperature, epsilon=0.1):
     a_baseline = baseline_policy(x)
 
     if random.random() < epsilon:
@@ -242,7 +246,9 @@ def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, epsilon
     phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    a_hat = optimize_proposal_objective(x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha)
+    a_hat = optimize_proposal_objective(
+        x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha, objective_temperature
+    )
     
     # TEST SELECTION ON SAMPLE 2
     beta_hat_S_2, cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
@@ -280,7 +286,7 @@ def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct
 
 #%% Evaluation functions
 
-def get_best_average_safe_reward(bandit, baseline_policy, num_samples=2000):
+def get_reward_baselines(bandit, baseline_policy, num_samples=2000):
     X = np.array([bandit.x_dist() for _ in range(num_samples)])
         
     phi_baseline = bandit.feature_vector(X, baseline_policy(X))
@@ -289,7 +295,6 @@ def get_best_average_safe_reward(bandit, baseline_policy, num_samples=2000):
     # Figure out the best reward obtainable by oracle safe policy
     num_actions = len(bandit.action_space)
     action_reward_masked_by_safety = np.zeros((num_samples, num_actions))
-    
     for a_idx, a in enumerate(bandit.action_space):
         phi_X_a = bandit.feature_vector(X, a)
         safety = phi_X_a @ bandit.safety_param
@@ -306,7 +311,8 @@ def get_best_average_safe_reward(bandit, baseline_policy, num_samples=2000):
     best_safe_rewards = np.max(action_reward_masked_by_safety, axis=1)
     assert len(best_safe_rewards) == num_samples
     best_average_safe_reward = np.mean(best_safe_rewards)
-    return best_average_safe_reward
+    baseline_average_reward = np.mean(phi_baseline @ bandit.reward_param)
+    return best_average_safe_reward, baseline_average_reward
 
 def evaluate(
         alg_label,
@@ -345,7 +351,7 @@ def evaluate(
 
         for t in range(num_alg_timesteps):
             x = bandit.sample()
-            a = action_selection(x, bandit, alpha=alpha)
+            a = action_selection(x=x, bandit=bandit, alpha=alpha)
             bandit.act(a)
             
         results["mean_reward"][run_idx] = bandit.R_mean
@@ -360,19 +366,14 @@ def evaluate(
         safety_baseline = phi_baseline @ bandit.safety_param
         results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline
 
-    best_safe_reward = get_best_average_safe_reward(
+    best_safe_reward, baseline_reward = get_reward_baselines(
         bandit_constructor(), baseline_policy
-    )            
-
+    )              
+    results["best_safe_reward"] = best_safe_reward
+    results["baseline_reward"] = baseline_reward    
+    
     duration = (time.time() - start_time)/60
     results["duration"] = duration
-    
-    results["best_safe_reward"] = best_safe_reward
-    
-    # Make JSON-compatible
-    for label, item in results.items():
-        if type(item) is np.ndarray:
-            results[label] = item.tolist()
     
     if print_time:
         print(
@@ -381,9 +382,19 @@ def evaluate(
         )
     return results
 
-def save_json(data, filename):
+def save_to_json(results_dict, filename):
+    results = {}
+    
+    # Make JSON-compatible
+    for run_label, run_data in results_dict.items():
+        run_data = copy.deepcopy(run_data)
+        for label, item in run_data.items():
+            if type(item) is np.ndarray:
+                run_data[label] = item.tolist()
+        results[run_label] = run_data
+        
     with open(os.path.join(data_path, filename), 'w') as f:
-        json.dump(data, f)
+        json.dump(results, f)
             
 #%% Evaluation
 baseline_policy = lambda x : 0
@@ -408,8 +419,8 @@ if __name__ == "__main__":
             action_selection,
             baseline_policy = baseline_policy,
             num_random_timesteps=10,
-            num_alg_timesteps=50,
-            num_runs=30,
+            num_alg_timesteps=10,
+            num_runs=3,
             alpha=0.1,    
         )
         results_dict[alg_label] = results
@@ -417,4 +428,4 @@ if __name__ == "__main__":
     total_duration = sum([results["duration"] for results in results_dict.values()])
     print(f"Total duration: {total_duration:0.02f} minutes.")
     
-    # save_json(results_dict, "2021_11_24_sinusoidal_bandit.json")
+    save_to_json(results_dict, "test.json")
