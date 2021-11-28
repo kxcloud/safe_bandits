@@ -10,10 +10,22 @@ wrapped_partial = bandit_learning.wrapped_partial
 baseline_policy = lambda x: 0
 
 alg_dict = {
-    "FWER pretest: TS" : wrapped_partial(
+    "FWER pretest: TS (test 3)" : wrapped_partial(
+            bandit_learning.alg_fwer_pretest_ts, 
+            baseline_policy=baseline_policy,
+            num_actions_to_test=3,
+            epsilon=0.1
+        ),
+    "FWER pretest: TS (test 5)" : wrapped_partial(
             bandit_learning.alg_fwer_pretest_ts, 
             baseline_policy=baseline_policy,
             num_actions_to_test=5,
+            epsilon=0.1
+        ),
+    "FWER pretest: TS (test all)" : wrapped_partial(
+            bandit_learning.alg_fwer_pretest_ts, 
+            baseline_policy=baseline_policy,
+            num_actions_to_test=np.inf,
             epsilon=0.1
         ),
     "Propose-test TS" : wrapped_partial(
