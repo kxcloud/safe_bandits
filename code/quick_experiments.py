@@ -50,6 +50,6 @@ for num_actions in [4, 8, 16]:
     
     title = f"Random polynomial bandit (num_actions={num_actions})"
     bandit_constructor().plot(title=title)
-    visualize_results.plot_many(results_dict.values(), moving_avg_window=10, title=title)
+    visualize_results.plot_many(results_dict.values(), plot_baseline_rewards=False, moving_avg_window=10, title=title)
     
 print(f"Total duration: {total_duration:0.02f} minutes.")

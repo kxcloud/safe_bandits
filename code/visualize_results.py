@@ -34,7 +34,7 @@ def plot(results, axes, moving_avg_window=None, color=None):
         )
     return axes
 
-def plot_many(results_list, colors=None, moving_avg_window=None, title=""):
+def plot_many(results_list, plot_baseline_rewards=True, colors=None, moving_avg_window=None, title=""):
     fig, axes = plt.subplots(nrows=1, ncols=4, sharex=True, figsize=(11,3.75))
     
     if colors is None:
@@ -46,8 +46,9 @@ def plot_many(results_list, colors=None, moving_avg_window=None, title=""):
     axes[-1].legend()
     
     # WARNING: this assumes best_safe_reward is the same for all runs
-    axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)       
-    axes[0].axhline(results["baseline_reward"], ls=":", c="black", lw=1)
+    if plot_baseline_rewards:
+        axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)      
+        axes[0].axhline(results["baseline_reward"], ls=":", c="black", lw=1)
         
     plt.legend(loc='best', bbox_to_anchor=(0.5, 0., 0.5, 0.5))
     plt.suptitle(title)
@@ -81,7 +82,6 @@ if __name__ == "__main__":
      'Propose-test TS (random split)',
      'Propose-test TS (unsafe FWER fallback)',
      'Propose-test TS (safe FWER fallback)',
-     'Full-sample proposal objective'
     ]
     
     colors = {run_name: f"C{idx}" for idx, run_name in enumerate(runs)}
@@ -93,9 +93,8 @@ if __name__ == "__main__":
       'FWER pretest: TS',
       'Propose-test TS',
       'Propose-test TS (random split)',
-       # 'Propose-test TS (unsafe FWER fallback)',
+      'Propose-test TS (unsafe FWER fallback)',
       'Propose-test TS (safe FWER fallback)',
-       # 'Full-sample proposal objective'
     ]
     
     colors = [colors[key] for key in subset]
