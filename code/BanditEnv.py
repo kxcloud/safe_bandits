@@ -116,12 +116,14 @@ def get_polynomial_bandit():
     )
     return bandit
 
-def get_random_polynomial_bandit(num_actions):
+def get_random_polynomial_bandit(num_actions, seed=None):
     p = 3
     
+    rng = np.random.default_rng(seed=seed)
+    
     param_size = (p+1)*num_actions
-    theta_reward = np.random.normal(size=param_size)
-    theta_safety = np.random.normal(size=param_size)
+    theta_reward = rng.normal(size=param_size)
+    theta_safety = rng.normal(size=param_size)
     
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
@@ -162,10 +164,8 @@ if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
-    bandit = get_polynomial_bandit()
-    bandit.plot(title="Two-action polynomial bandit")
-    
-    bandit = get_sinusoidal_bandit()
+    bandit = get_random_polynomial_bandit(4, seed=4)
+
     for _ in range(60):
         x = bandit.sample()
         a = np.random.choice(bandit.action_space)
@@ -175,5 +175,5 @@ if __name__ == "__main__":
     reward_param_est = linear_regression(phi_XA, np.array(bandit.R), penalty=0.1)
     safety_param_est = linear_regression(phi_XA, np.array(bandit.S), penalty=0.1)
     
-    bandit.plot(title="Six-action Sinusoidal bandit")
+    bandit.plot(title="truth")
     bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates")
