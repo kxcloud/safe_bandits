@@ -161,7 +161,7 @@ def maximize(objective, input_values):
 
 #%% Algorithms
 
-def alg_eps_greedy(x, bandit, alpha, epsilon=0.1):
+def alg_eps_greedy(x, bandit, alpha, epsilon):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -170,7 +170,7 @@ def alg_eps_greedy(x, bandit, alpha, epsilon=0.1):
     a = get_best_action(x, beta_hat_R, bandit)
     return a
 
-def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon=0.1):   
+def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon):   
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -194,7 +194,7 @@ def alg_fwer_pretest_eps_greedy(x, bandit, alpha, baseline_policy, num_actions_t
     a_hat = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
     return a_hat
 
-def alg_unsafe_ts(x, bandit, alpha, epsilon=0.1):
+def alg_unsafe_ts(x, bandit, alpha, epsilon):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -204,7 +204,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon=0.1):
     a = get_best_action(x, beta_hat_R_bs, bandit)
     return a
 
-def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon=0.1):
+def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space)
     
@@ -230,7 +230,7 @@ def alg_fwer_pretest_ts(x, bandit, alpha, baseline_policy, num_actions_to_test, 
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
     return a_hat
 
-def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objective_temperature, epsilon=0.1):
+def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objective_temperature, epsilon):
     a_baseline = baseline_policy(x)
 
     if random.random() < epsilon:
@@ -276,7 +276,9 @@ def alg_propose_test_ts(x, bandit, alpha, baseline_policy, random_split, objecti
     else:
         return a_baseline
 
-def alg_propose_test_ts_fwer_fallback(x, bandit, alpha, baseline_policy, correct_alpha, num_actions_to_test, epsilon=0.1):
+def alg_propose_test_ts_fwer_fallback(
+        x, bandit, alpha, baseline_policy, correct_alpha, num_actions_to_test, epsilon
+    ):
     a_baseline = baseline_policy(x)
 
     alpha = alpha/2 if correct_alpha else alpha
@@ -375,7 +377,7 @@ def evaluate(
         X = np.array(bandit.X)
         phi_baseline = bandit.feature_vector(X, baseline_policy(X))
         safety_baseline = phi_baseline @ bandit.safety_param
-        results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline
+        results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline - 1e-8
 
     best_safe_reward, baseline_reward = get_reward_baselines(
         bandit_constructor(), baseline_policy
