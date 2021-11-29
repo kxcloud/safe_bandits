@@ -10,18 +10,18 @@ wrapped_partial = bandit_learning.wrapped_partial
 baseline_policy = lambda x: 0
 
 alg_dict = {
-    "FWER pretest: TS (test 3)" : wrapped_partial(
-            bandit_learning.alg_fwer_pretest_ts, 
-            baseline_policy=baseline_policy,
-            num_actions_to_test=3,
-            epsilon=0.1
-        ),
-    "FWER pretest: TS (test 5)" : wrapped_partial(
-            bandit_learning.alg_fwer_pretest_ts, 
-            baseline_policy=baseline_policy,
-            num_actions_to_test=5,
-            epsilon=0.1
-        ),
+    # "FWER pretest: TS (test 3)" : wrapped_partial(
+    #         bandit_learning.alg_fwer_pretest_ts, 
+    #         baseline_policy=baseline_policy,
+    #         num_actions_to_test=3,
+    #         epsilon=0.1
+    #     ),
+    # "FWER pretest: TS (test 5)" : wrapped_partial(
+    #         bandit_learning.alg_fwer_pretest_ts, 
+    #         baseline_policy=baseline_policy,
+    #         num_actions_to_test=5,
+    #         epsilon=0.1
+    #     ),
     "FWER pretest: TS (test all)" : wrapped_partial(
             bandit_learning.alg_fwer_pretest_ts, 
             baseline_policy=baseline_policy,
@@ -34,12 +34,22 @@ alg_dict = {
             baseline_policy=baseline_policy,
             objective_temperature=1,
             epsilon=0.1
-        )
+        ),
+    # "Propose-test TS (random split)" : wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts, 
+    #         random_split=False, 
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=0.1
+    #     )
 }
 
 total_duration = 0
-for num_actions in [4, 8, 16]:
-    bandit_constructor = partial(BanditEnv.get_random_polynomial_bandit, num_actions=num_actions)
+num_actions_settings = [6, 12]
+for num_actions in num_actions_settings:
+    bandit_constructor = partial(
+        BanditEnv.get_random_polynomial_bandit, num_actions=num_actions, outcome_correlation=0
+    )
     
     results_dict = {}
     for alg_label, action_selection in alg_dict.items():
@@ -49,8 +59,8 @@ for num_actions in [4, 8, 16]:
             action_selection,
             baseline_policy = bandit_learning.baseline_policy,
             num_random_timesteps=10,
-            num_alg_timesteps=150,
-            num_runs=300,
+            num_alg_timesteps=250,
+            num_runs=500,
             alpha=0.1,    
         )
         run_label = f"{alg_label}"
@@ -58,10 +68,23 @@ for num_actions in [4, 8, 16]:
     
     total_duration += sum([results["duration"] for results in results_dict.values()])
     
-    bandit_learning.save_to_json(results_dict, f"2021_11_28_random_polynomial_{num_actions}_actions.json")
-    
-    title = f"Random polynomial bandit (num_actions={num_actions})"
-    bandit_constructor().plot(title=title)
-    visualize_results.plot_many(results_dict.values(), plot_baseline_rewards=False, moving_avg_window=10, title=title)
+    filename = f"2021_11_29_random_polynomial_{num_actions}_actions.json"
+    bandit_learning.save_to_json(results_dict, filename)
     
 print(f"Total duration: {total_duration:0.02f} minutes.")
+
+#%% Plot
+for num_actions in num_actions_settings:
+    filename = f"2021_11_29_random_polynomial_{num_actions}_actions.json"
+    results_dict = visualize_results.read_and_process_json(filename)
+    
+    title = f"Random polynomial bandit (num_actions={num_actions})"
+    # bandit_constructor().plot(title=title)
+    visualize_results.plot_many(
+        results_dict.values(), 
+        plot_confidence=True,
+        plot_baseline_rewards=False, 
+        moving_avg_window=10, 
+        title=title,
+        figsize=(13,5)
+    )

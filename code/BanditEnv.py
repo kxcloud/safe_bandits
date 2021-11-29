@@ -20,7 +20,7 @@ class BanditEnv:
         self.feature_vector = feature_vector
         self.reward_param = reward_param
         self.safety_param = safety_param
-        self.outcome_covariance = outcome_std_dev * np.array(
+        self.outcome_covariance = outcome_std_dev**2 * np.array(
             [[1, outcome_correlation], [outcome_correlation, 1]]
         )
         
@@ -73,7 +73,7 @@ class BanditEnv:
         mean_safety = np.dot(phi, self.safety_param)
         return mean_reward, mean_safety
     
-    def plot(self, figsize=(8,4), title="", reward_param=None, safety_param=None):
+    def plot(self, figsize=(8,4), title="", reward_param=None, safety_param=None, legend=True):
         reward_param = self.reward_param if reward_param is None else reward_param
         safety_param = self.safety_param if safety_param is None else safety_param
         targets = {"Mean reward" : reward_param, "Mean safety" : safety_param}
@@ -82,12 +82,14 @@ class BanditEnv:
         for idx, (label, param) in enumerate(targets.items()):
             ax = axes[idx]
             X_grid = np.linspace(0, 1, 70)
-            for a in self.action_space:
-                phi_a = self.feature_vector(X_grid, a)
+            for a_idx, a in enumerate(self.action_space):
+                phi_a = self.feature_vector(X_grid, a)             
                 ax.plot(X_grid, phi_a @ param, label=f"action={a}")
             ax.set_title(label)
             ax.set_xlabel("Context (x)")
-            ax.legend()
+        
+        if legend:
+            axes[-1].legend()
         plt.suptitle(title)
         return fig, axes
     
@@ -112,11 +114,11 @@ def get_polynomial_bandit():
         reward_param=theta_reward,
         safety_param=theta_safety,
         outcome_std_dev=2,
-        outcome_correlation=-0.8
+        outcome_correlation=0.8
     )
     return bandit
 
-def get_random_polynomial_bandit(num_actions, seed=None):
+def get_random_polynomial_bandit(num_actions, outcome_correlation, seed=None):
     p = 3
     
     rng = np.random.default_rng(seed=seed)
@@ -132,7 +134,7 @@ def get_random_polynomial_bandit(num_actions, seed=None):
         reward_param=theta_reward,
         safety_param=theta_safety,
         outcome_std_dev=2,
-        outcome_correlation=0
+        outcome_correlation=outcome_correlation
     )
     return bandit
     
@@ -156,7 +158,7 @@ def get_sinusoidal_bandit():
         reward_param=theta_reward,
         safety_param=theta_safety,
         outcome_std_dev=2,
-        outcome_correlation=-0.8
+        outcome_correlation=0.8
     )
     return bandit
    
@@ -164,7 +166,8 @@ if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
-    bandit = get_random_polynomial_bandit(4, seed=4)
+    num_actions = 6
+    bandit = get_random_polynomial_bandit(num_actions, outcome_correlation=0.8, seed=4)
 
     for _ in range(60):
         x = bandit.sample()
@@ -175,5 +178,5 @@ if __name__ == "__main__":
     reward_param_est = linear_regression(phi_XA, np.array(bandit.R), penalty=0.1)
     safety_param_est = linear_regression(phi_XA, np.array(bandit.S), penalty=0.1)
     
-    bandit.plot(title="truth")
-    bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates")
+    bandit.plot(title=f"Example of random polynomial bandit (num_actions={num_actions})", legend=False)
+    bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates", legend=False)
