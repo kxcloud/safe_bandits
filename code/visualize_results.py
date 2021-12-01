@@ -52,14 +52,15 @@ def plot(
     ax_safety_ind.axhline(1-results["alpha"], ls="--", c="gray", lw=1)  
 
     # Add vertical tick where random timesteps end
-    for ax in axes:
-        ax.axvline(
-            x = results["num_random_timesteps"],
-            alpha=0.5, 
-            c="grey", 
-            lw=1, 
-            ymax=0.02
-        )
+    if plot_random_timesteps:
+        for ax in axes:
+            ax.axvline(
+                x = results["num_random_timesteps"],
+                alpha=0.5, 
+                c="grey", 
+                lw=1, 
+                ymax=0.02
+            )
     return axes
 
 def plot_many(
