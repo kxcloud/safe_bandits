@@ -92,7 +92,7 @@ class BanditEnv:
             axes[-1].legend()
         plt.suptitle(title)
         return fig, axes
-    
+        
 def polynomial_feature(x, a, p, num_actions):
     x_vec = np.array([x**j for j in range(p+1)])
     phi_xa = np.concatenate([(a==k)*x_vec for k in range(num_actions)]).T
@@ -118,14 +118,12 @@ def get_polynomial_bandit():
     )
     return bandit
 
-def get_random_polynomial_bandit(num_actions, outcome_correlation, seed=None):
-    p = 3
-    
+def get_random_polynomial_bandit(num_actions, outcome_correlation, p=3, seed=None):   
     rng = np.random.default_rng(seed=seed)
     
     param_size = (p+1)*num_actions
     theta_reward = rng.normal(size=param_size)
-    theta_safety = rng.normal(size=param_size)
+    theta_safety = rng.normal(size=param_size)  
     
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
@@ -138,7 +136,6 @@ def get_random_polynomial_bandit(num_actions, outcome_correlation, seed=None):
     )
     return bandit
     
-
 def sinusoidal_feature(x, a):
     one = np.ones_like(x)
     phi_xa = np.array(
@@ -161,7 +158,31 @@ def get_sinusoidal_bandit():
         outcome_correlation=0.8
     )
     return bandit
-   
+
+def get_random_action_bandit(num_actions, outcome_correlation, p=3, seed=None):
+    """ A non-contextual bandit. """
+    rng = np.random.default_rng(seed=seed)
+    
+    param_size = (p+1)
+    theta_reward = rng.normal(size=param_size)
+    theta_safety = rng.normal(size=param_size)
+    
+    def polynomial_action(x, a):
+        return polynomial_feature(np.full_like(x, a, dtype=float), 0, p=p, num_actions=1)
+    
+    action_space = np.round(np.linspace(0, 1, num=num_actions),2)
+    
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=polynomial_action,
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=2,
+        outcome_correlation=outcome_correlation
+    )
+    return bandit
+
 if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
