@@ -14,6 +14,7 @@ def plot_bandit(
         reward_param=None, 
         safety_param=None, 
         baseline_policy=None,
+        tested_safe_actions=None,
         axes=None,
     ):
     """
@@ -35,14 +36,18 @@ def plot_bandit(
         bandit.feature_vector(0, a) @ safety_param for a in bandit.action_space
     ]
     
-    ax_reward.plot(bandit.action_space, expected_reward, c="black", ls=":", label="not safe")
+    
     ax_safety.plot(bandit.action_space, expected_safety)
     ax_reward.set_title("Expected reward")
     ax_safety.set_title("Expected safety")
     ax_reward.set_xlabel("Action (a)")
     
+    if baseline_policy is None:
+        ax_reward.plot(bandit.action_space, expected_reward)
+    
     # Highlight safe regions
     if baseline_policy is not None:
+        ax_reward.plot(bandit.action_space, expected_reward, c="black", ls=":", label="not safe")
         a_baseline = baseline_policy(0) # WARNING: assumes baseline policy ignores x 
         baseline_safety = bandit.feature_vector(0, a_baseline) @ safety_param
         
@@ -54,12 +59,57 @@ def plot_bandit(
                 safe_action_rewards.append(reward)
             else:
                 safe_action_rewards.append(None)
+        ax_reward.scatter(bandit.action_space, safe_action_rewards, c="C2", s=0.5)
         ax_reward.plot(bandit.action_space, safe_action_rewards, c="C2", lw=2.5, label="safe")
+        ax_reward.legend()
+        
+    if tested_safe_actions is not None:
+        tested_safe_action_rewards = []
+        for action, reward in zip(bandit.action_space, expected_reward):
+            if action in tested_safe_actions:
+                tested_safe_action_rewards.append(reward)
+            else:
+                tested_safe_action_rewards.append(None)
+        ax_reward.scatter(
+            bandit.action_space, tested_safe_action_rewards, c="black", marker="D", s=65,
+            zorder=9)
+        ax_reward.scatter(
+            bandit.action_space, tested_safe_action_rewards, c="gold", marker="D", label="tested safe",
+            zorder=10)
         ax_reward.legend()
         
     plt.suptitle(title)
     return (ax_reward, ax_safety)
 
+def plot_propose_test(info, action_space, title=""):
+    split_objective_function = info["split_objective"]
+    split = np.array([split_objective_function(a) for a in action_space])
+    pass_prob = split[:,0]
+    estimated_improvement = split[:,1]
+    objective = pass_prob * estimated_improvement
+    
+    test_results = [
+        pass_prob if info["safety_test"](a=a)[0] else None for a, pass_prob in zip(action_space, pass_prob)
+    ]
+    
+    idx_max = np.argmax(objective)
+    a_max = action_space[idx_max]
+    
+    fig, ax = plt.subplots()
+    ax2 = ax.twinx()
+    ax.plot(action_space, split[:,0], label="estimated pass probability", c="C0", ls="--")
+    ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=4)
+    
+    ax2.plot(action_space, split[:,1], label="estimated improvement", c="red")
+    ax2.plot(action_space, objective, label="objective", lw=2, c="black")
+    ax2.scatter(a_max, objective[idx_max], marker="*", c="black", s=100)
+
+    ax.set_title(title)
+    ax.set_ylabel("Probability")
+    ax2.set_ylabel("Reward")
+    ax.set_xlabel("Action (a)")
+    
+    fig.legend(bbox_to_anchor=[1.4,0.4,0,0])
 #%% 
 
 wrapped_partial = bandit_learning.wrapped_partial
@@ -84,7 +134,7 @@ alg_dict = {
         ),
     "Propose-test TS (OOS covariance)" : wrapped_partial(
             bandit_learning.alg_propose_test_ts, 
-            random_split=True, 
+            random_split=False, 
             use_out_of_sample_covariance=True,
             baseline_policy=baseline_policy,
             objective_temperature=1,
@@ -93,7 +143,7 @@ alg_dict = {
 }
 
 num_random_timesteps = 50
-bandit = BanditEnv.get_random_action_bandit(num_actions=50, outcome_correlation=0, p=6)
+bandit = BanditEnv.get_random_action_bandit(num_actions=100, outcome_correlation=0, p=6)
 plot_bandit(bandit, title="True bandit", baseline_policy=baseline_policy)
 
 for _ in range(num_random_timesteps):
@@ -109,11 +159,15 @@ S = np.array(bandit.S)
 
 beta_hat_R = bandit_learning.linear_regression(phi_XA, R)
 beta_hat_S = bandit_learning.linear_regression(phi_XA, S)
-plot_bandit(
+a, info = alg_dict["FWER pretest: TS (test all)"](x, bandit, alpha=0.1)
+ax_reward, ax_safety = plot_bandit(
     bandit, reward_param=beta_hat_R, safety_param=beta_hat_S, 
-    title="Estimated bandit", baseline_policy=baseline_policy
+    title="Estimated bandit with FWER", baseline_policy=baseline_policy,
+    tested_safe_actions= info["safe_actions"]
 )
 
-for alg_label, alg in alg_dict.items():
-    a = alg(x, bandit, alpha=0.1)
-    print(f"{alg_label} selects {a}")
+a, info = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
+plot_propose_test(info, bandit.action_space, "Propose-test objective")
+
+a, info = alg_dict["Propose-test TS (OOS covariance)"](x, bandit, alpha=0.1)
+plot_propose_test(info, bandit.action_space, "Propose-test objective (OOS covariance)")
