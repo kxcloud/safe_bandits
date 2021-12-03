@@ -98,7 +98,7 @@ def plot_propose_test(info, action_space, title=""):
     fig, ax = plt.subplots()
     ax2 = ax.twinx()
     ax.plot(action_space, split[:,0], label="estimated pass probability", c="C0", ls="--")
-    ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=4)
+    ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=3.5)
     
     ax2.plot(action_space, split[:,1], label="estimated improvement", c="red")
     ax2.plot(action_space, objective, label="objective", lw=2, c="black")
@@ -142,16 +142,25 @@ alg_dict = {
         ),
 }
 
-num_random_timesteps = 50
-bandit = BanditEnv.get_random_action_bandit(num_actions=100, outcome_correlation=0, p=6)
+#%% Search for disagreement between policies
+num_random_timesteps = 100
+
+searching_for_disagreement = True
+while searching_for_disagreement:
+    bandit = BanditEnv.get_random_action_bandit(num_actions=30, outcome_correlation=0, p=3)
+    for _ in range(num_random_timesteps):
+        bandit.sample() # Note: required to step bandit forward
+        a = np.random.choice(bandit.action_space)
+        bandit.act(a)
+    
+    x = bandit.sample() 
+    a_pretest, info_pretest = alg_dict["FWER pretest: TS (test all)"](x, bandit, alpha=0.1)
+    a_pt, info_pt = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
+    
+    if a_pretest != a_pt:
+        searching_for_disagreement = False
+
 plot_bandit(bandit, title="True bandit", baseline_policy=baseline_policy)
-
-for _ in range(num_random_timesteps):
-    bandit.sample() # Note: required to step bandit forward
-    a = np.random.choice(bandit.action_space)
-    bandit.act(a)
-
-x = bandit.sample() 
 
 phi_XA = np.array(bandit.phi_XA)
 R = np.array(bandit.R)
@@ -159,15 +168,17 @@ S = np.array(bandit.S)
 
 beta_hat_R = bandit_learning.linear_regression(phi_XA, R)
 beta_hat_S = bandit_learning.linear_regression(phi_XA, S)
-a, info = alg_dict["FWER pretest: TS (test all)"](x, bandit, alpha=0.1)
-ax_reward, ax_safety = plot_bandit(
-    bandit, reward_param=beta_hat_R, safety_param=beta_hat_S, 
-    title="Estimated bandit with FWER", baseline_policy=baseline_policy,
-    tested_safe_actions= info["safe_actions"]
+
+if "beta_hat_R_bs" not in info_pretest: # This happens when no tests pass
+    phi_XA_bs, R_bs = bandit_learning.bsample([phi_XA, R])    
+    beta_hat_R_bs = bandit_learning.linear_regression(phi_XA_bs, R_bs)
+else:
+    beta_hat_R_bs = info_pretest["beta_hat_R_bs"]
+    
+plot_bandit(
+    bandit, reward_param=beta_hat_R_bs, safety_param=beta_hat_S, 
+    title=f"Estimated bandit with FWER (selected {a_pretest})", baseline_policy=baseline_policy,
+    tested_safe_actions= info_pretest["safe_actions"]
 )
 
-a, info = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
-plot_propose_test(info, bandit.action_space, "Propose-test objective")
-
-a, info = alg_dict["Propose-test TS (OOS covariance)"](x, bandit, alpha=0.1)
-plot_propose_test(info, bandit.action_space, "Propose-test objective (OOS covariance)")
+plot_propose_test(info_pt, bandit.action_space, f"Propose-test objective (selected {a_pt})")
