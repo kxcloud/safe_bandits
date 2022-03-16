@@ -15,14 +15,15 @@ code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
-COV_STABILIZATION_AMT = 1e-8
+COV_STABILIZATION_AMT = 0 #1e-8
+print(f"Covariance stabilization: {COV_STABILIZATION_AMT}")
 
 def wrapped_partial(func, *args, **kwargs):
     partial_func = partial(func, *args, **kwargs)
     update_wrapper(partial_func, func)
     return partial_func
 
-def linear_regression(x_mat, y, penalty=0.01):
+def linear_regression(x_mat, y, penalty=1e-8):
     return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
 
 def bsample(list_of_data):
@@ -63,9 +64,7 @@ def estimate_safety_param_and_covariance(phi_XA, S):
     
     sqrt_G = np.linalg.cholesky(cov_G)
     sqrt_cov = np.linalg.solve(cov_H, sqrt_G)
-    
     # Note: cov = sqrt_cov @ sqrt_cov.T
-    
     return beta_hat_S, sqrt_cov
 
 def test_safety(x, a, a_baseline, beta_hat_S, sqrt_cov, alpha, phi, n):
@@ -75,13 +74,22 @@ def test_safety(x, a, a_baseline, beta_hat_S, sqrt_cov, alpha, phi, n):
     """   
     phi_diff = phi(x, a) - phi(x, a_baseline)
     
-    std_err = np.sqrt(np.sum((phi_diff.T @ sqrt_cov)**2))
+    std_err = np.sqrt(np.sum((phi_diff @ sqrt_cov)**2))
     critical_value = norm.ppf(1-alpha) * std_err / np.sqrt(n)
-    
+       
     test_stats = beta_hat_S @ phi_diff
     
     test_results = test_stats >= critical_value
     
+    # print()
+    # print(f"a: {a:0.05f}")
+    # print(f"n: {n}")
+    # print(f"alpha: {alpha:0.03f}")
+    # print(f"z-critical-value: {norm.ppf(1-alpha):0.03f}")
+    # print(f"std_err {std_err:0.03f}")
+    # print(f"critical value: {critical_value:0.03f}")
+    # print(f"test stat (safety improvement): {test_stats:0.03f}")
+    # print(f"result: {'pass' if test_results else 'fail'}")
     info = {"phi_diff" : phi_diff}
     return test_results, info
 
@@ -97,10 +105,13 @@ def test_many_actions(
     ):
     beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, S)
     
-    num_actions_to_test = min(num_actions_to_test, len(bandit.action_space))
-    actions_to_test = np.random.choice(
-        bandit.action_space, size=num_actions_to_test, replace=False
-    )
+    if num_actions_to_test >= len(bandit.action_space):
+        actions_to_test = bandit.action_space
+        num_actions_to_test = len(bandit.action_space)
+    else:    
+        actions_to_test = np.random.choice(
+            bandit.action_space, size=num_actions_to_test, replace=False
+        )
         
     if correct_for_multiple_testing: 
         alpha = alpha/num_actions_to_test  

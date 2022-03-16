@@ -183,12 +183,61 @@ def get_random_action_bandit(num_actions, outcome_correlation, p=3, seed=None):
     )
     return bandit
 
+def get_example_bandit(num_actions, p=2, seed=None):
+    """ A non-contextual bandit. """
+    
+    param_size = (p+1)
+    theta_reward = np.zeros(param_size)
+    theta_reward[1] = 1
+    theta_safety = -0.5*theta_reward
+    
+    def polynomial_action(x, a):
+        return polynomial_feature(np.full_like(x, a, dtype=float), 0, p=p, num_actions=1)
+    
+    action_space = np.round(np.linspace(0, 1, num=num_actions),2)
+    
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=polynomial_action,
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=1,
+        outcome_correlation=0
+    )
+    return bandit
+
+def get_standard_bandit(safety_means, outcome_std_dev):
+    num_actions = len(safety_means)
+    
+    theta_reward = np.random.normal(num_actions)
+    theta_safety = safety_means
+    
+    action_space = range(num_actions)
+    
+    def feature_vector(x, a):
+        phi_xa = np.zeros(num_actions)
+        phi_xa[a] = 1
+        return phi_xa
+                
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=feature_vector,
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=outcome_std_dev,
+        outcome_correlation=0
+    )
+    return bandit
+            
+
 if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
-    num_actions = 6
-    bandit = get_random_polynomial_bandit(num_actions, outcome_correlation=0.8, seed=4)
+    num_actions = 50
+    bandit = get_example_bandit(num_actions)
 
     for _ in range(60):
         x = bandit.sample()
