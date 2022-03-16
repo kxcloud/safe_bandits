@@ -50,7 +50,7 @@ class BanditEnv:
         phi = self.feature_vector(self.current_x, a)
         mean_reward = np.dot(phi, self.reward_param)
         mean_safety = np.dot(phi, self.safety_param)
-        
+                        
         reward_noise, safety_noise = self._get_noise(a)
         
         r, s = mean_reward + reward_noise, mean_safety + safety_noise
@@ -92,7 +92,7 @@ class BanditEnv:
             axes[-1].legend()
         plt.suptitle(title)
         return fig, axes
-        
+       
 def polynomial_feature(x, a, p, num_actions):
     x_vec = np.array([x**j for j in range(p+1)])
     phi_xa = np.concatenate([(a==k)*x_vec for k in range(num_actions)]).T
@@ -210,14 +210,18 @@ def get_example_bandit(num_actions, p=2, seed=None):
 def get_standard_bandit(safety_means, outcome_std_dev):
     num_actions = len(safety_means)
     
-    theta_reward = np.random.normal(num_actions)
+    theta_reward = np.random.normal(size=num_actions)
     theta_safety = safety_means
     
     action_space = range(num_actions)
     
     def feature_vector(x, a):
-        phi_xa = np.zeros(num_actions)
-        phi_xa[a] = 1
+        if type(x) is np.ndarray:
+            phi_xa = np.zeros((len(x), num_actions))
+            phi_xa[:, a] = 1
+        else:
+            phi_xa = np.zeros(num_actions)
+            phi_xa[a] =1
         return phi_xa
                 
     bandit = BanditEnv(
@@ -230,7 +234,43 @@ def get_standard_bandit(safety_means, outcome_std_dev):
         outcome_correlation=0
     )
     return bandit
-            
+
+def get_pretest_punisher(outcome_std_dev):
+    """
+    A bandit with many obviously-low-reward actions.
+    """
+    num_actions = 50
+    num_good_actions = 1
+    
+    theta_reward = np.zeros(num_actions)
+    theta_reward[0] = -1
+    theta_reward[1:num_good_actions+1] = 5
+    
+    theta_safety = -np.ones(num_actions)
+    theta_safety[1:num_good_actions+1] = 0.25
+    theta_safety[0] = 0
+    
+    action_space = range(num_actions)
+    
+    def feature_vector(x, a):
+        if type(x) is np.ndarray:
+            phi_xa = np.zeros((len(x), num_actions))
+            phi_xa[:, a] = 1
+        else:
+            phi_xa = np.zeros(num_actions)
+            phi_xa[a] =1
+        return phi_xa
+                
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=feature_vector,
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=outcome_std_dev,
+        outcome_correlation=0
+    )
+    return bandit
 
 if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):

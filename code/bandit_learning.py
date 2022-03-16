@@ -15,7 +15,7 @@ code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
-COV_STABILIZATION_AMT = 0 #1e-8
+COV_STABILIZATION_AMT = 1e-8
 print(f"Covariance stabilization: {COV_STABILIZATION_AMT}")
 
 def wrapped_partial(func, *args, **kwargs):
@@ -366,7 +366,7 @@ def get_reward_baselines(bandit, baseline_policy, num_samples=2000):
         is_safe = safety >= safety_baseline
         
         reward = phi_X_a @ bandit.reward_param
-
+        
         reward_masked_by_safety = np.array([
              r if safe else -np.inf for r, safe in zip(reward, is_safe)
         ])
@@ -388,6 +388,7 @@ def evaluate(
         num_alg_timesteps,
         num_runs,
         alpha, 
+        even_action_selection=False,
         print_time=True
     ):
     start_time = time.time()
@@ -409,16 +410,19 @@ def evaluate(
 
     for run_idx in range(num_runs):
         bandit = bandit_constructor()
-        for _ in range(num_random_timesteps):
+        for i in range(num_random_timesteps):
             bandit.sample() # Note: required to step bandit forward
-            a = np.random.choice(bandit.action_space)
+            if even_action_selection:
+                a = i % len(bandit.action_space)
+            else:
+                a = np.random.choice(bandit.action_space)
             bandit.act(a)
 
         for t in range(num_alg_timesteps):
             x = bandit.sample()
             a, _ = learning_algorithm(x=x, bandit=bandit, alpha=alpha)
             bandit.act(a)
-            
+        
         results["mean_reward"][run_idx] = bandit.R_mean
         results["mean_safety"][run_idx] = bandit.S_mean
         
