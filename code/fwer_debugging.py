@@ -19,7 +19,7 @@ fwer = wrapped_partial(
 
 ALPHA = 0.1
 EFFECT_SIZE = 1
-N_RUNS = 2
+N_RUNS = 1_000
 SAMPLES_PER_ACTION = 3
 EFFECT_SIZES =  [0.5,1,2,4]
 
@@ -27,6 +27,10 @@ start_time = time.time()
 results = []
 for effect_size in EFFECT_SIZES:
     for num_actions in range(5, 200, 20):        
+        
+        false_positive_run_count = 0
+        sum_of_detection_rates = 0
+        
         for _ in range(N_RUNS):
             # Setup bandit
             safety_means = np.random.normal(size=num_actions) * effect_size
@@ -35,11 +39,7 @@ for effect_size in EFFECT_SIZES:
             safety_inds = safety_means >= safety_means[baseline_policy(0)]
             num_safe = sum(safety_inds)
             
-            false_positive_run_count = 0
-            total_true_positives = 0
-            
             bandit = BanditEnv.get_standard_bandit(safety_means, outcome_std_dev=1)
-            
             for _ in range(SAMPLES_PER_ACTION):
                 for action in bandit.action_space:
                     bandit.sample()
@@ -70,12 +70,12 @@ for effect_size in EFFECT_SIZES:
             if false_positives > 0:
                 false_positive_run_count += 1
             
-            total_true_positives += true_positives - 1 # don't count action 0
+            sum_of_detection_rates += (true_positives - 1)/(num_actions -1) # don't count action 0
             
-            error_rate = false_positive_run_count/N_RUNS
-            detection_rate = total_true_positives / (num_actions - 1)
+        error_rate = false_positive_run_count/N_RUNS
+        avg_detection_rate = sum_of_detection_rates / N_RUNS
     
-        results.append((effect_size, num_actions, error_rate, detection_rate))
+        results.append((effect_size, num_actions, error_rate, avg_detection_rate))
 duration = (time.time() - start_time)/60
 
 print(f"Runtime: {duration:0.02f} minutes.")
@@ -96,7 +96,7 @@ ax.set_title("Multi-armed bandit testing with Bonferonni correction:\nError rate
 #%%
 fig, ax = plt.subplots()
 ax.set_xlabel("Num actions")
-ax.set_ylabel("Familywise error rate")
+ax.set_ylabel("Average (across runs) % of true positives identified")
 
 for effect_size in EFFECT_SIZES:
     subset = res[res["effect_size"] == effect_size]
