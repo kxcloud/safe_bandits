@@ -18,9 +18,8 @@ fwer = wrapped_partial(
 )
 
 ALPHA = 0.1
-EFFECT_SIZE = 1
-N_RUNS = 1_000
-SAMPLES_PER_ACTION = 3
+N_RUNS = 1000
+SAMPLES_PER_ACTION = 2
 EFFECT_SIZES =  [0.5,1,2,4]
 
 start_time = time.time()
@@ -80,8 +79,11 @@ duration = (time.time() - start_time)/60
 
 print(f"Runtime: {duration:0.02f} minutes.")
 res = pd.DataFrame(results, columns=["effect_size", "num_actions", "error_rate", "avg_num_detected"])   
+res.to_csv("G:\\System\\Documents\\ACADEMIC\\safe_bandits\\data\\fwer_debugging\\two_samples_per_action.csv", index=False)
 
 #%%
+subtitle = f"\n(safety: {ALPHA}, samples per action: {SAMPLES_PER_ACTION})"
+
 fig, ax = plt.subplots()
 ax.set_xlabel("Num actions")
 ax.set_ylabel("Familywise error rate")
@@ -90,10 +92,10 @@ for effect_size in EFFECT_SIZES:
     subset = res[res["effect_size"] == effect_size]
     ax.plot(subset["num_actions"], subset["error_rate"], label=effect_size)
 
-ax.legend(title="Effect size")
-ax.set_title("Multi-armed bandit testing with Bonferonni correction:\nError rates")
+ax.legend(title="Signal")
+ax.set_title("Multi-armed bandit testing with Bonferonni correction: Error rates"+subtitle)
 
-#%%
+
 fig, ax = plt.subplots()
 ax.set_xlabel("Num actions")
 ax.set_ylabel("Average (across runs) % of true positives identified")
@@ -102,11 +104,10 @@ for effect_size in EFFECT_SIZES:
     subset = res[res["effect_size"] == effect_size]
     ax.plot(subset["num_actions"], subset["avg_num_detected"], label=effect_size)
 
-ax.legend(title="Effect size")
-ax.set_title("Multi-armed bandit testing with Bonferonni correction:\n Power")
+ax.legend(title="Signal")
+ax.set_title("Multi-armed bandit testing with Bonferonni correction: Power"+subtitle)
 
 #%%
-
 
 fig, ax = plt.subplots(figsize=(12,6))
 
