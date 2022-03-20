@@ -92,6 +92,24 @@ class BanditEnv:
             axes[-1].legend()
         plt.suptitle(title)
         return fig, axes
+    
+    def plot_actions_at_context(
+            self, context, figsize=(8,4), title="", reward_param=None, safety_param=None
+        ):
+        reward_param = self.reward_param if reward_param is None else reward_param
+        safety_param = self.safety_param if safety_param is None else safety_param
+        targets = {"Mean reward" : reward_param, "Mean safety" : safety_param}
+
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
+        for idx, (label, param) in enumerate(targets.items()):
+            ax = axes[idx]
+            targets = [self.feature_vector(context, a) @ param for a in self.action_space]
+            ax.scatter(self.action_space, targets)
+            ax.set_title(label)
+            ax.set_xlabel("Action (a)")
+
+        plt.suptitle(title)
+        return fig, axes
        
 def polynomial_feature(x, a, p, num_actions):
     x_vec = np.array([x**j for j in range(p+1)])
@@ -235,19 +253,50 @@ def get_standard_bandit(safety_means, outcome_std_dev):
     )
     return bandit
 
-def get_pretest_punisher(outcome_std_dev):
+def get_power_checker(num_actions, effect_size):
+    """
+    A bandit with only one arm worth considering.
+    """
+    theta_reward = np.zeros(num_actions)
+    theta_reward[1] = 100
+    
+    theta_safety = -np.ones(num_actions) * 100
+    theta_safety[0] = 0
+    theta_safety[1] = effect_size
+    
+    action_space = range(num_actions)
+    
+    def feature_vector(x, a):
+        if type(x) is np.ndarray:
+            phi_xa = np.zeros((len(x), num_actions))
+            phi_xa[:, a] = 1
+        else:
+            phi_xa = np.zeros(num_actions)
+            phi_xa[a] =1
+        return phi_xa
+                
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=feature_vector,
+        reward_param=theta_reward,
+        safety_param=theta_safety,
+        outcome_std_dev=1,
+        outcome_correlation=0
+    )
+    return bandit
+
+def get_pretest_punisher():
     """
     A bandit with many obviously-low-reward actions.
     """
-    num_actions = 50
+    num_actions = 10
     num_good_actions = 1
     
     theta_reward = np.zeros(num_actions)
-    theta_reward[0] = -1
-    theta_reward[1:num_good_actions+1] = 5
+    theta_reward[1:num_good_actions+1] = 100
     
-    theta_safety = -np.ones(num_actions)
-    theta_safety[1:num_good_actions+1] = 0.25
+    theta_safety = np.ones(num_actions) * 0.5
     theta_safety[0] = 0
     
     action_space = range(num_actions)
@@ -267,7 +316,7 @@ def get_pretest_punisher(outcome_std_dev):
         feature_vector=feature_vector,
         reward_param=theta_reward,
         safety_param=theta_safety,
-        outcome_std_dev=outcome_std_dev,
+        outcome_std_dev=1,
         outcome_correlation=0
     )
     return bandit
@@ -276,8 +325,8 @@ if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
-    num_actions = 50
-    bandit = get_example_bandit(num_actions)
+    bandit = get_pretest_punisher(1)
+    bandit.plot_actions_at_context(0)
 
     for _ in range(60):
         x = bandit.sample()
@@ -288,5 +337,5 @@ if __name__ == "__main__":
     reward_param_est = linear_regression(phi_XA, np.array(bandit.R), penalty=0.1)
     safety_param_est = linear_regression(phi_XA, np.array(bandit.S), penalty=0.1)
     
-    bandit.plot(title=f"Example of random polynomial bandit (num_actions={num_actions})", legend=False)
-    bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates", legend=False)
+    # bandit.plot(title=f"Example of random polynomial bandit (num_actions={num_actions})", legend=False)
+    # bandit.plot(reward_param = reward_param_est, safety_param = safety_param_est, title="estimates", legend=False)
