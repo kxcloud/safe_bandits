@@ -3,6 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from scipy.stats import norm, t
 
 """
@@ -83,18 +84,29 @@ print(f"Runtime: {duration:0.02f} minutes.")
 
 colnames = ["num_arms", "samples_per_arm", "effect_size", "pass_pct_pretest", "pass_pct_spt"]
 res = pd.DataFrame.from_records(records, columns=colnames)
-res.to_csv("G:\\System\\Documents\\ACADEMIC\\safe_bandits\\data\\fwer_debugging\\basic_power_calcs.csv", index=False)
+
+filepath = "G:\\System\\Documents\\ACADEMIC\\safe_bandits\\data\\fwer_debugging\\basic_power_calcs.csv"
+res.to_csv(filepath, index=False)
 
 
 #%% Plot
 
-def qplot(x_var, curves_var, fixed_var, fixed_value, figsize=(8,5)):
-    subset1 = res[res[fixed_var] == fixed_value]
+# res = pd.read_csv(filepath)
+
+def qplot(
+        df, x_var, curves_var, fixed_var, fixed_value, 
+        title=None,
+        figsize=(8,5), 
+        ax=None,
+        show_legends=True,
+        ):
+    subset1 = df[df[fixed_var] == fixed_value]
     
     curve_values = subset1[curves_var].unique()
     
-    fig, ax = plt.subplots(figsize=figsize)
-    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+            
     for idx, curve_value in enumerate(curve_values):
         color = f"C{idx}"
         subset2 = subset1[subset1[curves_var] == curve_value]
@@ -103,22 +115,43 @@ def qplot(x_var, curves_var, fixed_var, fixed_value, figsize=(8,5)):
         y_pretest = subset2["pass_pct_pretest"]
         y_spt = subset2["pass_pct_spt"]
         
-        ax.plot(x, y_pretest, c=color, label=curve_value)
+        ax.plot(x, y_pretest, c=color, label=f"{curve_value:0.03f}")
         ax.plot(x, y_spt, c=color, ls="--")
     
     ax.set_xlabel(x_var)
     ax.set_ylabel("Power")
-    ax.legend(title=curves_var)
+    ax.set_ylim((0,1))
     
-    title = "Power of bandit testing algs in extreme case"
+    if show_legends:
+        ax.legend(title=curves_var)
+        
+        legend_types = [
+            Line2D([0], [0], color="gray", label='Multiple Pretest'),
+            Line2D([0], [0], color='gray', ls="--", label='Split-Propose-Test'),
+        ]
+            
+        ax_ghost = ax.twinx()
+        ax_ghost.legend(handles=legend_types, loc="upper left")
+        ax_ghost.set_yticklabels([])
+            
     subtitle1 = f"({fixed_var}={fixed_value})"
-    subtitle2 = "Solid line: Pretest, dashed: Split-Propose-Test"
     
-    ax.set_title("\n".join([title, subtitle1, subtitle2]))
+    if title is not None:
+        ax.set_title("\n".join([title, subtitle1]))
+    else:
+        ax.set_title(subtitle1)
     
     return ax
 
-qplot("num_arms", "effect_size", "samples_per_arm", 10)
+sub = res[(res.effect_size < 1) ]
 
-    
+fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(10,10), sharey=True, sharex=True)
 
+sample_values = [6, 12, 18, 24]
+show_legends = True
+for ax, samples_per_arm in zip(axes.flatten(), sample_values):
+    qplot(sub, "num_arms", "effect_size", "samples_per_arm", samples_per_arm, ax=ax, show_legends=show_legends)
+    show_legends = False
+   
+fig.suptitle("Power of bandit testing algorithms to detect single good arm")
+plt.tight_layout()
