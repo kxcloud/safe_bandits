@@ -26,7 +26,7 @@ def multiple_pretest(num_arms, samples_per_arm, effect_size, alpha=0.1, std_dev=
     action_1_S = np.random.normal(effect_size, std_dev, size=samples_per_arm)
     
     mu_hat = np.mean(action_1_S)
-    std_err = np.std(action_1_S) 
+    std_err = np.std(action_1_S) / np.sqrt(samples_per_arm)
     
     passed_test = mu_hat / std_err > z_score
     return passed_test
@@ -55,7 +55,7 @@ def propose_test(num_arms, samples_per_arm, effect_size, alpha=0.1, std_dev=1):
     
     z_score = norm.ppf(1-alpha)
     mu_hat = np.mean(action_1_S_test)
-    std_err = np.std(action_1_S_test) 
+    std_err = np.std(action_1_S_test) / np.sqrt(test_set_size)
         
     passed_test = mu_hat / std_err > z_score
     return passed_test
