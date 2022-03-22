@@ -143,7 +143,7 @@ def get_expected_improvement_objective(
     phi_XA_bs, R_bs = bsample([phi_XA, R])    
     beta_hat_R_bs = linear_regression(phi_XA_bs, R_bs)
         
-    num_bs_samples = 50
+    num_bs_samples = 200
     beta_hats_S_bs = np.zeros((num_bs_samples, phi_XA.shape[1]))
     for bs_idx in range(num_bs_samples):
         phi_XA_bs, S_bs = bsample([phi_XA, S])
@@ -299,6 +299,82 @@ def alg_propose_test_ts(
     )
     
     a_hat = maximize(expected_improvement, bandit.action_space)
+    
+    # TEST SELECTION ON SAMPLE 2      
+    safety_test = partial(
+        test_safety,
+        x = x,
+        a_baseline = a_baseline,
+        beta_hat_S = beta_hat_S_2,
+        sqrt_cov = sqrt_cov_2,
+        alpha = alpha,
+        phi = bandit.feature_vector,
+        n = len(S_2)
+    )
+    
+    test_result, _ = safety_test(a=a_hat)
+    
+    info = {
+        "objective" : expected_improvement, 
+        "beta_hat_S_2": beta_hat_S_2,
+        "split_objective": split,
+        "safety_test" : safety_test
+    }
+
+    if test_result:
+        return a_hat, info
+    else:
+        return a_baseline, info
+
+def alg_propose_test_ts_smart_explore(
+        x, 
+        bandit, 
+        alpha, 
+        baseline_policy, 
+        random_split, 
+        objective_temperature, 
+        use_out_of_sample_covariance,
+        epsilon
+    ):
+    """
+    Matches Propose Test TS except uniform random exploration is replaced
+    by maximization of (a bootstrap resampling of) Propose-Test objective
+    which is NOT tested for safety.
+    """
+    
+    a_baseline = baseline_policy(x)
+        
+    X = np.array(bandit.X)
+    phi_XA = np.array(bandit.phi_XA)
+    R = np.array(bandit.R)
+    S = np.array(bandit.S)
+    
+    if random_split:
+        n = len(X)
+        shuffled_indices = np.random.choice(n, size=n, replace=False)
+        for data in X, phi_XA, R, S:
+            data[:] = data[shuffled_indices]
+    
+    phi_XA_1, R_1, S_1 = phi_XA[::2], R[::2], S[::2]
+    phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
+    
+    # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
+    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
+    
+    if use_out_of_sample_covariance:
+        sqrt_cov = sqrt_cov_2
+    else:
+        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1)
+        sqrt_cov = sqrt_cov_1
+    
+    expected_improvement, split = get_expected_improvement_objective(
+        x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha, sqrt_cov, objective_temperature
+    )
+    
+    a_hat = maximize(expected_improvement, bandit.action_space)
+    
+    if random.random() < epsilon:
+        return a_hat, {}
     
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(

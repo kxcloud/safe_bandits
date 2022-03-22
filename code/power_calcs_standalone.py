@@ -64,11 +64,11 @@ def propose_test(num_arms, samples_per_arm, effect_size, alpha=0.1, std_dev=1):
 start_time = time.time()
 results = []
 
-N_RUNS = 2000
+N_RUNS = 50000
 records = []
-for num_arms in range(5, 200, 5):
-    for samples_per_arm in range(6, 40, 2):
-        for effect_size in np.linspace(0.1, 2, 8):
+for num_arms in range(1,50):
+    for samples_per_arm in [20]:
+        for effect_size in [0.5]:
             num_passed_pretest = 0
             num_passed_spt = 0
             for _ in range(N_RUNS):
@@ -85,7 +85,7 @@ print(f"Runtime: {duration:0.02f} minutes.")
 colnames = ["num_arms", "samples_per_arm", "effect_size", "pass_pct_pretest", "pass_pct_spt"]
 res = pd.DataFrame.from_records(records, columns=colnames)
 
-filepath = "G:\\System\\Documents\\ACADEMIC\\safe_bandits\\data\\fwer_debugging\\basic_power_calcs.csv"
+filepath = "G:\\System\\Documents\\ACADEMIC\\safe_bandits\\data\\fwer_debugging\\basic_power_calcs_2.csv"
 res.to_csv(filepath, index=False)
 
 
@@ -115,7 +115,7 @@ def qplot(
         y_pretest = subset2["pass_pct_pretest"]
         y_spt = subset2["pass_pct_spt"]
         
-        ax.plot(x, y_pretest, c=color, label=f"{curve_value:0.03f}")
+        ax.plot(x, y_pretest, c=color, label=f"{curve_value:0.01f}")
         ax.plot(x, y_spt, c=color, ls="--")
     
     ax.set_xlabel(x_var)
@@ -143,15 +143,13 @@ def qplot(
     
     return ax
 
-sub = res[(res.effect_size < 1) ]
+fig, ax = plt.subplots(figsize=(8,5))
+ax.plot(res["num_arms"], res["pass_pct_pretest"], label="Multiple Pretesting")
+ax.plot(res["num_arms"], res["pass_pct_spt"], label="Split-Propose-Test", ls="--")
+ax.set_xlabel("Number of arms")
+ax.set_ylabel("Power")
+ax.legend()
 
-fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(10,10), sharey=True, sharex=True)
-
-sample_values = [6, 12, 18, 24]
-show_legends = True
-for ax, samples_per_arm in zip(axes.flatten(), sample_values):
-    qplot(sub, "num_arms", "effect_size", "samples_per_arm", samples_per_arm, ax=ax, show_legends=show_legends)
-    show_legends = False
-   
-fig.suptitle("Power of bandit testing algorithms to detect single good arm")
-plt.tight_layout()
+title = "Power of bandit testing algorithms to detect single good arm"
+subtitle = "(Samples per arm: 20, effect size: 0.5)"
+ax.set_title(title+"\n"+subtitle)

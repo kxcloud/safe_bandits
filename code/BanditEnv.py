@@ -258,9 +258,9 @@ def get_power_checker(num_actions, effect_size):
     A bandit with only one arm worth considering.
     """
     theta_reward = np.zeros(num_actions)
-    theta_reward[1] = 100
+    theta_reward[1:] = 100
     
-    theta_safety = -np.ones(num_actions) * 100
+    theta_safety = -np.ones(num_actions) * effect_size
     theta_safety[0] = 0
     theta_safety[1] = effect_size
     
