@@ -2,6 +2,8 @@ import json
 import os
 
 import matplotlib.pyplot as plt
+import matplotlib.style as style
+style.use('tableau-colorblind10')
 import numpy as np
 import pandas as pd
 
@@ -15,11 +17,19 @@ def plot(
         plot_confidence=True, 
         moving_avg_window=None, 
         color=None,
-        plot_random_timesteps=True
+        plot_random_timesteps=True,
+        include_mean_safety=True,
     ):
-    ax_reward, ax_safety, ax_safety_ind, ax_agreement = axes
-    result_keys = ["mean_reward", "mean_safety", "safety_ind", "agreed_with_baseline"]
-    titles = ["Mean rewards", "Mean safety", "Safety indicator", "Agreed with baseline policy"]
+    
+    if include_mean_safety:
+        ax_reward, ax_safety, ax_safety_ind, ax_agreement = axes
+        result_keys = ["mean_reward", "mean_safety", "safety_ind", "agreed_with_baseline"]
+        titles = ["Mean rewards", "Mean safety", "Safety indicator", "Agreed with baseline policy"]
+        
+    if not include_mean_safety:
+        ax_reward, ax_safety_ind, ax_agreement = axes
+        result_keys = ["mean_reward", "safety_ind", "agreed_with_baseline"]
+        titles = ["Mean rewards", "Safety indicator", "Agreed with baseline policy"]
     
     t_0 = 0 if plot_random_timesteps else results["num_random_timesteps"]
     t_final = results["num_random_timesteps"] + results["num_alg_timesteps"]
@@ -33,7 +43,7 @@ def plot(
             mean = pd.Series(mean).rolling(moving_avg_window).mean()
             
         label = results["alg_label"] if ax is ax_agreement else None
-        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2)
+        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2.5)
         
         if plot_confidence:
             num_runs = results[result_key].shape[0]
@@ -70,10 +80,13 @@ def plot_many(
         colors=None, 
         moving_avg_window=None, 
         plot_random_timesteps=True,
+        include_mean_safety=True,
         figsize=(11,3.75), 
         title=""
     ):
-    fig, axes = plt.subplots(nrows=1, ncols=4, sharex=True, figsize=figsize)
+    
+    ncols = 4 if include_mean_safety else 3
+    fig, axes = plt.subplots(nrows=1, ncols=ncols, sharex=True, figsize=figsize)
     
     if colors is None:
         colors = [None]*len(results_list)
@@ -86,7 +99,8 @@ def plot_many(
             plot_confidence=plot_confidence,
             moving_avg_window=moving_avg_window,
             color=color, 
-            plot_random_timesteps=plot_random_timesteps
+            plot_random_timesteps=plot_random_timesteps,
+            include_mean_safety=include_mean_safety
         )
     
     axes[-1].legend()
@@ -146,52 +160,3 @@ def read_combine_and_process_json(filenames):
                 result[key] = np.array(item)
     
     return combined_results_dict         
-
-if __name__ == "__main__":                
-    #%% Plot data
-    filename1 = "2021_11_30_out_of_sample_comparison.json"
-    filename2 = "2021_11_30_out_of_sample_comparison_B.json"
-    results1 = read_combine_and_process_json([filename1, filename2])
-    # results1 = read_and_process_json(filename1)
-    # results2 = read_and_process_json(filename2)
-    
-    #%%
-    runs = [
-        'Unsafe e-greedy',
-        'Unsafe TS',
-        'FWER pretest (all): e-greedy',
-        'FWER pretest (all): TS',
-        'Propose-test TS',
-        'Propose-test TS (OOS covariance)',
-        'Propose-test TS (random split)',
-        'Propose-test TS (random) (OOS)',
-        'Propose-test TS (safe FWER fallback [all])'
-    ]
-    
-    colors = {run_name: f"C{idx}" for idx, run_name in enumerate(runs)}
-    
-    subset = [
-        # 'Unsafe e-greedy',
-        # 'Unsafe TS',
-        'FWER pretest (all): e-greedy',
-        'FWER pretest (all): TS',
-        'Propose-test TS',
-        'Propose-test TS (OOS covariance)',
-        'Propose-test TS (random split)',
-        'Propose-test TS (random) (OOS)',
-        'Propose-test TS (safe FWER fallback [all])'
-    ]
-    
-    colors = [colors[key] for key in subset]
-    title = ""
-    
-    for result_list in [results1]: #, results2]:
-        plot_many(
-            [result_list[key] for key in subset], 
-            moving_avg_window=20, 
-            colors=colors, 
-            title=title+" Sinusoidal bandit",
-            figsize=(13,7),
-            plot_confidence=True,
-            plot_baseline_rewards=False
-        )

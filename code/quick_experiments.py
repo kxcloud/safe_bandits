@@ -28,21 +28,21 @@ alg_dict = {
         bandit_learning.alg_unsafe_ts, 
         epsilon=EPSILON
         ),
-    "FWER pretest: TS (test all)" : wrapped_partial(
+    "FWER pretest: TS" : wrapped_partial(
             bandit_learning.alg_fwer_pretest_ts, 
             baseline_policy=baseline_policy,
             num_actions_to_test=np.inf,
             epsilon=EPSILON
         ),
-    "Propose-test TS" : wrapped_partial(
-            bandit_learning.alg_propose_test_ts, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
-    "Propose-test TS (smart explore)" : wrapped_partial(
+    # "Propose-test TS" : wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
+    "SPT-TS" : wrapped_partial(
             bandit_learning.alg_propose_test_ts_smart_explore, 
             random_split=False, 
             use_out_of_sample_covariance=False,
@@ -114,13 +114,25 @@ filename1 = f"2022_03_21_pretest_punisher_E.json"
 # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
 results_dict = visualize_results.read_and_process_json(filename1)
 
+
+rename_dict = {
+    "Unsafe TS" : "Unsafe TS",
+    "FWER pretest TS" : "FWER pretest: TS (test all)",
+    "SPT-TS" : "Propose-test TS (smart explore)"
+}
+
+new_results_dict = { newname: results_dict[oldname] for newname, oldname in rename_dict.items()}
+for new_name, results in new_results_dict.items():
+    results["alg_label"] = new_name
+
 title = None #f"Power testing bandit - hard to detect unsafe actions"
 # bandit_constructor().plot(title=title)
 visualize_results.plot_many(
-    results_dict.values(), 
+    new_results_dict.values(), 
     plot_confidence=False,
     plot_baseline_rewards=False, 
     plot_random_timesteps=False,
+    include_mean_safety=False,
     moving_avg_window=10, 
     title=title,
     figsize=(13,5)

@@ -83,7 +83,7 @@ def plot_bandit(
     plt.suptitle(title)
     return (ax_reward, ax_safety)
 
-def plot_propose_test(info, action_space, title=""):
+def plot_propose_test(info, action_space, show_test_result, title=""):
     split_objective_function = info["split_objective"]
     split = np.array([split_objective_function(a) for a in action_space])
     pass_prob = split[:,0]
@@ -100,7 +100,9 @@ def plot_propose_test(info, action_space, title=""):
     fig, ax = plt.subplots()
     ax2 = ax.twinx()
     ax.plot(action_space, split[:,0], label="estimated pass probability", c="C0", ls="--")
-    ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=3.5)
+    
+    if show_test_result:
+        ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=3.5)
     
     ax2.plot(action_space, split[:,1], label="estimated improvement", c="red")
     ax2.plot(action_space, objective, label="objective", lw=2, c="black")

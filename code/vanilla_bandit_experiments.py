@@ -72,15 +72,27 @@ filename2 = "2022_03_22_dosage_example_C.json"
 filenames = [filename0, filename1, filename2]
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
+
+rename_dict = {
+    "Unsafe TS" : "Unsafe TS",
+    "FWER pretest TS" : "FWER pretest: TS (test all)",
+    "SPT-TS" : "Propose-test TS (smart explore)"
+}
+
+new_results_dict = { newname: results_dict[oldname] for newname, oldname in rename_dict.items()}
+for new_name, results in new_results_dict.items():
+    results["alg_label"] = new_name
+
     
-title = f"Dosage example"
+title = None
 # bandit_constructor().plot(title=title)
 visualize_results.plot_many(
-    results_dict.values(), 
-    plot_confidence=True,
+    new_results_dict.values(), 
+    plot_confidence=False,
     plot_baseline_rewards=False, 
     plot_random_timesteps=False,
+    include_mean_safety=False,
     moving_avg_window=10, 
     title=title,
-    figsize=(13,8)
+    figsize=(13,5)
 )
