@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 import BanditEnv
 import bandit_learning
 import visualize_results
+import utils
 
 def plot_bandit(
         bandit, 
         figsize=(8.5,4), 
         title="", 
+        safety_tol=0,
         reward_param=None, 
         safety_param=None, 
         baseline_policy=None,
@@ -55,7 +57,7 @@ def plot_bandit(
         for action, reward, safety in zip(
                 bandit.action_space, expected_reward, expected_safety
             ):
-            if safety >= baseline_safety - 1e-8:
+            if safety >= baseline_safety - safety_tol - 1e-8:
                 safe_action_rewards.append(reward)
             else:
                 safe_action_rewards.append(None)
@@ -116,13 +118,15 @@ wrapped_partial = bandit_learning.wrapped_partial
 baseline_policy = lambda x: 0
 
 global_epsilon = 0
+safety_tol = 0.1
 
 alg_dict = {
     "FWER pretest: TS (test all)" : wrapped_partial(
             bandit_learning.alg_fwer_pretest_ts, 
             baseline_policy=baseline_policy,
             num_actions_to_test=np.inf,
-            epsilon=global_epsilon
+            epsilon=global_epsilon,
+            safety_tol = safety_tol ,
         ),
     "Propose-test TS" : wrapped_partial(
             bandit_learning.alg_propose_test_ts, 
@@ -130,7 +134,8 @@ alg_dict = {
             use_out_of_sample_covariance=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
-            epsilon=global_epsilon
+            epsilon=global_epsilon,
+            safety_tol=safety_tol ,
         ),
     "Propose-test TS (OOS covariance)" : wrapped_partial(
             bandit_learning.alg_propose_test_ts, 
@@ -138,7 +143,8 @@ alg_dict = {
             use_out_of_sample_covariance=True,
             baseline_policy=baseline_policy,
             objective_temperature=1,
-            epsilon=global_epsilon
+            epsilon=global_epsilon,
+            safety_tol=safety_tol 
         ),
 }
 
@@ -147,7 +153,7 @@ num_random_timesteps = 100
 
 searching_for_disagreement = True
 while searching_for_disagreement:
-    bandit = BanditEnv.get_random_action_bandit(num_actions=30, outcome_correlation=0, p=3)
+    bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
     for _ in range(num_random_timesteps):
         bandit.sample() # Note: required to step bandit forward
         a = np.random.choice(bandit.action_space)
@@ -157,28 +163,34 @@ while searching_for_disagreement:
     a_pretest, info_pretest = alg_dict["FWER pretest: TS (test all)"](x, bandit, alpha=0.1)
     a_pt, info_pt = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
     
+    if True:
+        searching_for_disagreement = False
+    
     if a_pretest != a_pt:
         searching_for_disagreement = False
 
-plot_bandit(bandit, title="True bandit", baseline_policy=baseline_policy)
+(ax_r, ax_s) = plot_bandit(bandit, title="True bandit with data", baseline_policy=baseline_policy, safety_tol=safety_tol)
+ax_r.scatter(bandit.A, bandit.R, s=8, alpha=0.5)
+ax_s.scatter(bandit.A, bandit.S, s=8, alpha=0.5)
 
 phi_XA = np.array(bandit.phi_XA)
 R = np.array(bandit.R)
 S = np.array(bandit.S)
 
-beta_hat_R = bandit_learning.linear_regression(phi_XA, R)
-beta_hat_S = bandit_learning.linear_regression(phi_XA, S)
+beta_hat_R = utils.linear_regression(phi_XA, R)
+beta_hat_S = utils.linear_regression(phi_XA, S)
 
 if "beta_hat_R_bs" not in info_pretest: # This happens when no tests pass
     phi_XA_bs, R_bs = bandit_learning.bsample([phi_XA, R])    
-    beta_hat_R_bs = bandit_learning.linear_regression(phi_XA_bs, R_bs)
+    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
 else:
     beta_hat_R_bs = info_pretest["beta_hat_R_bs"]
     
 plot_bandit(
     bandit, reward_param=beta_hat_R_bs, safety_param=beta_hat_S, 
     title=f"Estimated bandit with FWER (selected {a_pretest})", baseline_policy=baseline_policy,
-    tested_safe_actions= info_pretest["safe_actions"]
+    tested_safe_actions= info_pretest["safe_actions"],
+    safety_tol=safety_tol
 )
 
 plot_propose_test(info_pt, bandit.action_space, f"Propose-test objective (selected {a_pt})")

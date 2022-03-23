@@ -114,12 +114,12 @@ filename1 = f"2022_03_21_pretest_punisher_E.json"
 # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
 results_dict = visualize_results.read_and_process_json(filename1)
 
-title = f"Power testing bandit - hard to detect unsafe actions"
+title = None #f"Power testing bandit - hard to detect unsafe actions"
 # bandit_constructor().plot(title=title)
 visualize_results.plot_many(
     results_dict.values(), 
-    plot_confidence=True,
-    plot_baseline_rewards=True, 
+    plot_confidence=False,
+    plot_baseline_rewards=False, 
     plot_random_timesteps=False,
     moving_avg_window=10, 
     title=title,

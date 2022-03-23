@@ -3,6 +3,8 @@ from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
 
+import utils
+
 class BanditEnv:
     
     def __init__(
@@ -307,7 +309,7 @@ def get_pretest_punisher():
             phi_xa[:, a] = 1
         else:
             phi_xa = np.zeros(num_actions)
-            phi_xa[a] =1
+            phi_xa[a] = 1
         return phi_xa
                 
     bandit = BanditEnv(
@@ -321,11 +323,49 @@ def get_pretest_punisher():
     )
     return bandit
 
+def get_dosage_example(num_actions, param_count):
+    dosage_reward = lambda x : 1 - 1/np.exp(5*x)
+    dosage_safety = lambda x : 1 - 1/np.exp(-5*(x-1))
+    
+    action_space = np.linspace(0, 1, num_actions).round(3)
+    
+    def rbf_feature_vector(x, a):
+        param_center = a*param_count
+        rbf_distances = np.abs(param_center - np.linspace(0, param_count, param_count))
+        rbf_preweight = np.exp(-rbf_distances)
+        phi = rbf_preweight / rbf_preweight.sum()
+        
+        if type(x) is np.ndarray:
+            phi = np.tile(phi, (len(x),1))
+        
+        return phi
+   
+    ft_grid = np.zeros((num_actions, param_count))
+    for a_idx, a in enumerate(action_space):
+        ft_grid[a_idx,:] = rbf_feature_vector(0, a)
+     
+    rewards = [dosage_reward(a) for a in action_space]
+    safetys = [dosage_safety(a) for a in action_space]
+    
+    theta_r = utils.linear_regression(ft_grid, rewards)
+    theta_s = utils.linear_regression(ft_grid, safetys)
+    
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=action_space,
+        feature_vector=rbf_feature_vector,
+        reward_param=theta_r,
+        safety_param=theta_s,
+        outcome_std_dev=0.1,
+        outcome_correlation=0
+    )
+    return bandit
+
 if __name__ == "__main__":
     def linear_regression(x_mat, y, penalty=0.01):
         return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
     
-    bandit = get_pretest_punisher(1)
+    bandit = get_dosage_example(10, 5)
     bandit.plot_actions_at_context(0)
 
     for _ in range(60):
