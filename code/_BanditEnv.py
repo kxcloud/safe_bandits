@@ -208,7 +208,7 @@ def get_standard_bandit(safety_means, outcome_std_dev):
 
 def get_power_checker(num_actions, effect_size):
     """
-    A bandit with only one arm worth considering.
+    A non-contextual bandit with only one arm worth considering.
     """
     theta_reward = np.zeros(num_actions)
     theta_reward[1:] = 100
@@ -235,6 +235,12 @@ def get_power_checker(num_actions, effect_size):
 
 
 def get_dosage_example(num_actions, param_count):
+    """
+    A non-contextual linear bandit where reward is increasing and safety is 
+    decreasing in action ("dosage") level, and information is pooled across 
+    nearby dosage levels using a radial basis function representation for 
+    features.
+    """
     dosage_reward = lambda x : 1 - 1/np.exp(5*x)
     dosage_safety = lambda x : 1 - 1/np.exp(-5*(x-1))
     
