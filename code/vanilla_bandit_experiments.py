@@ -2,11 +2,12 @@ from functools import partial
 
 import numpy as np
 
-import BanditEnv
-import bandit_learning
-import visualize_results
+import _BanditEnv as BanditEnv
+import _bandit_learning as bandit_learning
+import _visualize_results as visualize_results
+import _utils as utils
 
-wrapped_partial = bandit_learning.wrapped_partial
+wrapped_partial = utils.wrapped_partial
 baseline_policy = lambda x: 0
 
 bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count= 10)

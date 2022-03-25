@@ -1,9 +1,16 @@
+from functools import partial, update_wrapper
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 
 def linear_regression(x_mat, y, penalty=1e-8):
     return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
+
+def wrapped_partial(func, *args, **kwargs):
+    partial_func = partial(func, *args, **kwargs)
+    update_wrapper(partial_func, func)
+    return partial_func
 
 def get_normal_inv_cdf(loc, scale):
     f = lambda t: scipy.stats.norm.ppf(t, loc=loc, scale=scale)

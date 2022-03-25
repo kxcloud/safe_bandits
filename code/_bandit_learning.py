@@ -3,14 +3,12 @@ import time
 import json
 import os
 import random
-from functools import partial, update_wrapper
+from functools import partial
 
 import numpy as np
-from scipy.optimize import minimize
 from scipy.stats import norm
 
-import BanditEnv
-import utils
+import _utils as utils
 
 code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
@@ -18,11 +16,6 @@ data_path = os.path.join(project_path,"data")
 
 COV_STABILIZATION_AMT = 1e-8
 print(f"Covariance stabilization: {COV_STABILIZATION_AMT}")
-
-def wrapped_partial(func, *args, **kwargs):
-    partial_func = partial(func, *args, **kwargs)
-    update_wrapper(partial_func, func)
-    return partial_func
 
 def bsample(list_of_data):
     n = len(list_of_data[0])
@@ -81,15 +74,6 @@ def test_safety(
     
     test_results = test_stats + safety_tol >= critical_value
     
-    # print()
-    # print(f"a: {a:0.05f}")
-    # print(f"n: {n}")
-    # print(f"alpha: {alpha:0.03f}")
-    # print(f"z-critical-value: {norm.ppf(1-alpha):0.03f}")
-    # print(f"std_err {std_err:0.03f}")
-    # print(f"critical value: {critical_value:0.03f}")
-    # print(f"test stat (safety improvement): {test_stats:0.03f}")
-    # print(f"result: {'pass' if test_results else 'fail'}")
     info = {"phi_diff" : phi_diff}
     return test_results, info
 
@@ -562,47 +546,27 @@ def save_to_json(results_dict, filename):
 baseline_policy = lambda x : 0
 
 alg_dict = {
-    "Unsafe e-greedy" : wrapped_partial(alg_eps_greedy, epsilon=0.1),
-    "Unsafe TS" : wrapped_partial(alg_unsafe_ts, epsilon=0.1),
-    "FWER pretest (all): e-greedy" : wrapped_partial(
+    "Unsafe e-greedy" : utils.wrapped_partial(alg_eps_greedy, epsilon=0.1),
+    "Unsafe TS" : utils.wrapped_partial(alg_unsafe_ts, epsilon=0.1),
+    "FWER pretest (all): e-greedy" : utils.wrapped_partial(
             alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy, num_actions_to_test=np.inf, epsilon=0.1
         ),
-    "FWER pretest (all): TS" :  wrapped_partial(
+    "FWER pretest (all): TS" :  utils.wrapped_partial(
             alg_fwer_pretest_ts, baseline_policy=baseline_policy, num_actions_to_test=np.inf, epsilon=0.1
         ),
-    "Propose-test TS" : wrapped_partial(
+    "Propose-test TS" : utils.wrapped_partial(
             alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=False, epsilon=0.1
         ),
-    "Propose-test TS (OOS covariance)" : wrapped_partial(
+    "Propose-test TS (OOS covariance)" : utils.wrapped_partial(
             alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=True, epsilon=0.1
         ),
-    "Propose-test TS (random split)" : wrapped_partial(
+    "Propose-test TS (random split)" : utils.wrapped_partial(
             alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=False, epsilon=0.1
         ),
-    "Propose-test TS (random) (OOS)" : wrapped_partial(
+    "Propose-test TS (random) (OOS)" : utils.wrapped_partial(
             alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=True, epsilon=0.1
         ),
-    "Propose-test TS (safe FWER fallback [all])" : wrapped_partial(
+    "Propose-test TS (safe FWER fallback [all])" : utils.wrapped_partial(
             alg_propose_test_ts_fwer_fallback, correct_alpha=True, num_actions_to_test=np.inf, baseline_policy=baseline_policy, epsilon=0.1
         ),  
 }
-
-if __name__ == "__main__":
-    results_dict = {}
-    for alg_label, learning_algorithm in alg_dict.items():
-        results = evaluate(
-            alg_label,
-            BanditEnv.get_sinusoidal_bandit,
-            learning_algorithm,
-            baseline_policy = baseline_policy,
-            num_random_timesteps=10,
-            num_alg_timesteps=300,
-            num_runs=1000,
-            alpha=0.1,    
-        )
-        results_dict[alg_label] = results
-    
-    total_duration = sum([results["duration"] for results in results_dict.values()])
-    print(f"Total duration: {total_duration:0.02f} minutes.")
-    
-    save_to_json(results_dict, "2021_11_30_out_of_sample_comparison_B.json")

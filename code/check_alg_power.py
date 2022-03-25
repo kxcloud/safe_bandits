@@ -4,13 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-import BanditEnv
-import bandit_learning
+import _BanditEnv as BanditEnv
+import _bandit_learning as bandit_learning
+import _utils as utils
 
-wrapped_partial = bandit_learning.wrapped_partial
 baseline_policy = lambda x: 0
 
-fwer = wrapped_partial(
+fwer = utils.wrapped_partial(
     bandit_learning.alg_fwer_pretest_ts, 
     baseline_policy=baseline_policy,
     num_actions_to_test=np.inf,

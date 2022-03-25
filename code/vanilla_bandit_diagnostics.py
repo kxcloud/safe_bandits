@@ -3,10 +3,10 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-import BanditEnv
-import bandit_learning
-import visualize_results
-import utils
+import _BanditEnv as BanditEnv
+import _bandit_learning as bandit_learning 
+import _visualize_results as visualize_results
+import _utils as utils
 
 def plot_bandit(
         bandit, 
@@ -116,7 +116,7 @@ def plot_propose_test(info, action_space, show_test_result, title=""):
     fig.legend(bbox_to_anchor=[1.4,0.4,0,0])
 #%% 
 
-wrapped_partial = bandit_learning.wrapped_partial
+wrapped_partial = utils.wrapped_partial
 baseline_policy = lambda x: 0
 
 global_epsilon = 0
@@ -195,4 +195,27 @@ plot_bandit(
     safety_tol=safety_tol
 )
 
-plot_propose_test(info_pt, bandit.action_space, f"Propose-test objective (selected {a_pt})")
+plot_propose_test(info_pt, bandit.action_space, f"Split-Propose-Test objective (selected {a_pt})")
+
+#%% Plot SPT objective evolution
+num_random_timesteps = 200
+num_alg_timesteps = 100
+plot_frequency = 10
+
+bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
+for _ in range(num_random_timesteps):
+    bandit.sample() # Note: required to step bandit forward
+    a = np.random.choice(bandit.action_space)
+    bandit.act(a)
+
+spt_infos = []
+for t in range(num_alg_timesteps):
+    x = bandit.sample()
+    a_pt, info_pt = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
+    bandit.act(a_pt)
+    
+    if t % plot_frequency == 0:
+        plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"t={t}")
+        
+    
+    
