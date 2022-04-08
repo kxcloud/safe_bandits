@@ -174,7 +174,7 @@ def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), {}
     
-    beta_hat_R = utils.linear_regression(np.array(bandit.phi_XA), np.array(bandit.R))
+    beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
     
     a = get_best_action(x, beta_hat_R, bandit)
     return a, {}
@@ -192,8 +192,8 @@ def alg_fwer_pretest_eps_greedy(
         a_baseline = a_baseline,
         num_actions_to_test = num_actions_to_test,
         alpha = alpha,
-        phi_XA = np.array(bandit.phi_XA),
-        S = np.array(bandit.S),
+        phi_XA = bandit.get_phi_XA(),
+        S = bandit.get_S(),
         bandit = bandit,
         correct_for_multiple_testing=True,
         safety_tol = safety_tol
@@ -202,7 +202,7 @@ def alg_fwer_pretest_eps_greedy(
     if len(safe_actions) == 0:
         return a_baseline, {}
     
-    beta_hat_R = utils.linear_regression(np.array(bandit.phi_XA), np.array(bandit.R))
+    beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
     a_hat = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
     return a_hat, {}
 
@@ -210,7 +210,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), {}
     
-    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
+    phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
     beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
     
     a = get_best_action(x, beta_hat_R_bs, bandit)
@@ -229,8 +229,8 @@ def alg_fwer_pretest_ts(
         a_baseline = a_baseline,
         num_actions_to_test = num_actions_to_test,
         alpha = alpha,
-        phi_XA = np.array(bandit.phi_XA),
-        S = np.array(bandit.S),
+        phi_XA = bandit.get_phi_XA(),
+        S = bandit.get_S(),
         bandit = bandit,
         correct_for_multiple_testing = True,
         safety_tol = safety_tol
@@ -243,7 +243,7 @@ def alg_fwer_pretest_ts(
     if len(safe_actions) == 1:
         return safe_actions[0], info
   
-    phi_XA_bs, R_bs = bsample([np.array(bandit.phi_XA), np.array(bandit.R)])    
+    phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
     beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
     
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
@@ -266,10 +266,10 @@ def alg_propose_test_ts(
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), {}
         
-    X = np.array(bandit.X)
-    phi_XA = np.array(bandit.phi_XA)
-    R = np.array(bandit.R)
-    S = np.array(bandit.S)
+    X = bandit.get_X()
+    phi_XA = bandit.get_phi_XA()
+    R = bandit.get_R()
+    S = bandit.get_S()
     
     if random_split:
         n = len(X)
@@ -341,11 +341,11 @@ def alg_propose_test_ts_smart_explore(
     """
     
     a_baseline = baseline_policy(x)
-        
-    X = np.array(bandit.X)
-    phi_XA = np.array(bandit.phi_XA)
-    R = np.array(bandit.R)
-    S = np.array(bandit.S)
+    
+    X = bandit.get_X()
+    phi_XA = bandit.get_phi_XA()
+    R = bandit.get_R()
+    S = bandit.get_S()
     
     if random_split:
         n = len(X)
@@ -427,16 +427,17 @@ def alg_propose_test_ts_fwer_fallback(
 #%% Evaluation functions
 
 def get_reward_baselines(bandit, baseline_policy, safety_tol, num_samples=2000):
-    X = np.array([bandit.x_dist() for _ in range(num_samples)])
+    bandit.reset(num_timesteps=1, num_instances=num_samples)
+    X = bandit.sample()
         
-    phi_baseline = bandit.feature_vector(X, baseline_policy(X))
+    phi_baseline = bandit.feature_vectorized(X, baseline_policy(X))
     safety_baseline = phi_baseline @ bandit.safety_param
     
     # Figure out the best reward obtainable by oracle safe policy
     num_actions = len(bandit.action_space)
     action_reward_masked_by_safety = np.zeros((num_samples, num_actions))
     for a_idx, a in enumerate(bandit.action_space):
-        phi_X_a = bandit.feature_vector(X, a)
+        phi_X_a = bandit.feature_vectorized(X, a)
         safety = phi_X_a @ bandit.safety_param
         is_safe = safety >= safety_baseline - safety_tol
         
@@ -461,10 +462,10 @@ def evaluate(
         baseline_policy,
         num_random_timesteps,
         num_alg_timesteps,
+        num_instances,
         num_runs,
         alpha, 
         safety_tol,
-        even_action_selection=False,
         print_time=True
     ):
     start_time = time.time()
@@ -476,10 +477,11 @@ def evaluate(
         "alg_name" : learning_algorithm.__name__,
         "num_random_timesteps" : num_random_timesteps,
         "num_alg_timesteps" : num_alg_timesteps,
-        "mean_reward" : np.zeros((num_runs, total_timesteps)),
-        "mean_safety" : np.zeros((num_runs, total_timesteps)),
-        "safety_ind" : np.zeros((num_runs, total_timesteps), dtype=bool),
-        "agreed_with_baseline" : np.zeros((num_runs, total_timesteps), dtype=bool),
+        "num_instances" : num_instances,
+        "mean_reward" : np.zeros((num_runs, total_timesteps, num_instances)),
+        "mean_safety" : np.zeros((num_runs, total_timesteps, num_instances)),
+        "safety_ind" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
+        "agreed_with_baseline" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "alpha" : alpha,
         "safety_tol" : safety_tol,
         "duration" : None
@@ -487,28 +489,34 @@ def evaluate(
 
     for run_idx in range(num_runs):
         bandit = bandit_constructor()
+        bandit.reset(total_timesteps, num_instances)
+        
         for i in range(num_random_timesteps):
             bandit.sample() # Note: required to step bandit forward
-            if even_action_selection:
-                a = i % len(bandit.action_space)
-            else:
-                a = np.random.choice(bandit.action_space)
-            bandit.act(a)
+            a_batch = np.random.choice(bandit.action_space, size=num_instances)
+            bandit.act(a_batch)
 
         for t in range(num_alg_timesteps):
-            x = bandit.sample()
-            a, _ = learning_algorithm(x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol)
-            bandit.act(a)
+            x_batch = bandit.sample()
+            a_batch = []
+            for x in x_batch:
+                a, _ = learning_algorithm(x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol)
+                a_batch.append(a)
+            bandit.act(a_batch)
         
         results["mean_reward"][run_idx] = bandit.R_mean
         results["mean_safety"][run_idx] = bandit.S_mean
         
-        agreement = baseline_policy(np.array(bandit.X)) == np.array(bandit.A)
+        agreement = baseline_policy(bandit.X) == bandit.A
         results["agreed_with_baseline"][run_idx] = agreement
         
         # Evaluate safety
-        X = np.array(bandit.X)
-        phi_baseline = bandit.feature_vector(X, baseline_policy(X))
+        phi_baseline = np.zeros_like(bandit.phi_XA)
+        for t in range(total_timesteps):
+            for instance_idx in range(num_instances):
+                x = bandit.X[t, instance_idx]
+                a_safe = baseline_policy(x)
+                phi_baseline[t, instance_idx] = bandit.feature_vector(x, a_safe)
         safety_baseline = phi_baseline @ bandit.safety_param
         results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline - safety_tol - 1e-8
 

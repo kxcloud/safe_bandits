@@ -20,52 +20,111 @@ class BanditEnv:
         self.reward_param = reward_param
         self.safety_param = safety_param
         self.outcome_covariance = outcome_covariance
+           
+    def reset(self, num_timesteps, num_instances):
+        """
+        Create arrays to store data from a run.
+        """
+        self.num_timesteps = num_timesteps
+        self.num_instances = num_instances
         
-        self.X = []
-        self.phi_XA = []
-        self.A = []
-        self.R = []
-        self.S = []
+        x = self.x_dist()
+        a = self.action_space[0] 
+        x_length = len(x) if hasattr(x, "__len__") else 1
+        feature_length = len(self.feature_vector(x,a))
         
-        self.R_mean = []
-        self.S_mean = []
+        self.X = np.zeros((num_timesteps, num_instances, x_length))
+        self.phi_XA = np.zeros((num_timesteps, num_instances, feature_length))
+        self.A = np.zeros((num_timesteps, num_instances))
+        self.R = np.zeros((num_timesteps, num_instances))
+        self.S = np.zeros((num_timesteps, num_instances))
+        
+        self.R_mean = np.zeros((num_timesteps, num_instances))
+        self.S_mean = np.zeros((num_timesteps, num_instances))
         
         self.t = 0
         self.current_x = None
-        
+    
     def sample(self):
-        self.current_x = self.x_dist()
+        self.current_x = np.array([self.x_dist() for _ in range(self.num_instances)])
         return self.current_x
     
-    def _get_noise(self, a):
+    def _get_noise(self, a_batch):
         reward_noise, safety_noise = np.random.multivariate_normal(
-            np.zeros(2), self.outcome_covariance
-        )
+            np.zeros(2), self.outcome_covariance, size=self.num_instances
+        ).T
         return reward_noise, safety_noise
-    
-    def act(self, a):
-        phi = self.feature_vector(self.current_x, a)
-        mean_reward = np.dot(phi, self.reward_param)
-        mean_safety = np.dot(phi, self.safety_param)
+        
+    def act(self, a_batch):
+        for x, a in zip(self.current_x, a_batch):
+            phi = self.feature_vector(x, a)
+
+        mean_reward = phi @ self.reward_param
+        mean_safety = phi @ self.safety_param
                         
-        reward_noise, safety_noise = self._get_noise(a)
+        reward_noise, safety_noise = self._get_noise(a_batch)
         
         r, s = mean_reward + reward_noise, mean_safety + safety_noise
         
-        self.X.append(self.current_x)
-        self.phi_XA.append(phi)
-        self.A.append(a)
-        self.R.append(r)
-        self.S.append(s)
+        self.X[self.t] = self.current_x[:, None]
+        self.phi_XA[self.t] = phi
+        self.A[self.t] = a_batch
+        self.R[self.t] = r
+        self.S[self.t] = s
         
-        self.R_mean.append(mean_reward)
-        self.S_mean.append(mean_safety)
+        self.R_mean[self.t] = mean_reward
+        self.S_mean[self.t] = mean_safety
         
         self.t += 1
     
-    def get_mean_rewards(self, a):
+    def get_phi_XA(self, flatten=True):
+        if flatten:
+            return self.phi_XA[:self.t].reshape((-1, self.phi_XA.shape[-1]))
+        else:
+            return self.phi_XA[:self.t]
+
+    def get_X(self, flatten=True):
+        if flatten:
+            return self.X[:self.t].reshape((-1, self.X.shape[-1]))
+        else:
+            return self.X[:self.t]
+        
+    def get_R(self, flatten=True):
+        if flatten:
+            return self.R[:self.t].reshape((-1, self.R.shape[-1]))
+        else:
+            return self.R[:self.t]
+    
+    def get_S(self, flatten=True):
+        if flatten:
+            return self.S[:self.t].reshape((-1, self.S.shape[-1]))
+        else:
+            return self.S[:self.t]
+    
+    def feature_vectorized(self, x_batch, a_batch):
+        x_is_batched = hasattr(x_batch, "__len__")
+        a_is_batched = hasattr(a_batch, "__len__")
+        
+        if not x_is_batched and not a_is_batched:
+            return self.feature_vector(x_batch, a_batch)
+        
+        if x_is_batched and not a_is_batched:
+            a_to_broadcast = a_batch
+            a_batch = [a_to_broadcast for x in x_batch]
+        
+        if not x_is_batched and a_is_batched:
+            x_to_broadcast = x_batch
+            x_batch = [x_to_broadcast for a in a_batch]
+        
+        phi_XA = []
+        for x, a in zip(x_batch, a_batch):
+            phi_XA.append(self.feature_vector(x, a))
+        return np.array(phi_XA)
+    
+    def get_mean_rewards(self, a_batch):
         """ Convenience function """
-        phi = self.feature_vector(self.current_x, a)
+        raise NotImplementedError()
+        phi = self.feature_vector(self.current_x, a_batch)
         mean_reward = np.dot(phi, self.reward_param)
         mean_safety = np.dot(phi, self.safety_param)
         return mean_reward, mean_safety
@@ -110,34 +169,29 @@ class BanditEnv:
 
 
 # FEATURE VECTORS
+# Apply on single (x,a) pairs -- no broadcasting
 # "Standard bandit" means the context is ignored
 
 def orthogonal_polynomial_feature(x, a, p, num_actions):
-    x_vec = np.array([x**j for j in range(p+1)])
-    phi_xa = np.concatenate([(a==k)*x_vec for k in range(num_actions)]).T
+    """ Assumes action space is {0, 1, ... num_actions-1}. """
+    polynomial_terms = p+1
+    phi_xa = np.zeros(num_actions*polynomial_terms)
+    for j in range(polynomial_terms):
+        phi_xa[a*polynomial_terms + j] = x**j
     return phi_xa
 
 def standard_bandit_feature(x, a, num_actions):
-    if type(x) is np.ndarray:
-        phi_xa = np.zeros((len(x), num_actions))
-        phi_xa[:, a] = 1
-    else:
-        phi_xa = np.zeros(num_actions)
-        phi_xa[a] = 1
+    """ Assumes action space is {0, 1, ... num_actions-1}. """
+    phi_xa = np.zeros(num_actions)
+    phi_xa[a] = 1
     return phi_xa
 
 def standard_bandit_rbf_feature(x, a, param_count):
-    """
-    Assumes action space is [0,1].
-    """
+    """ Assumes action space is [0,1]. """
     param_center = a*param_count
     rbf_distances = np.abs(param_center - np.linspace(0, param_count, param_count))
     rbf_preweight = np.exp(-rbf_distances)
     phi = rbf_preweight / rbf_preweight.sum()
-    
-    if type(x) is np.ndarray:
-        phi = np.tile(phi, (len(x),1))
-    
     return phi
 
 # PRESET BANDIT ENVS
@@ -269,3 +323,14 @@ def get_dosage_example(num_actions, param_count):
         outcome_covariance=[[0.1,0],[0,0.1]]
     )
     return bandit
+
+if __name__ == "__main__":
+    num_instances = 2
+    bandit = get_dosage_example(3, 7)
+    bandit.reset(num_timesteps=5, num_instances=num_instances)
+    
+    x = bandit.sample()
+    bandit.act([bandit.action_space[0] for _ in range(num_instances)])
+    
+    x = bandit.sample()
+    bandit.act([bandit.action_space[0] for _ in range(num_instances)])
