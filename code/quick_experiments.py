@@ -92,9 +92,9 @@ for num_actions in num_actions_settings:
             bandit_constructor,
             action_selection,
             baseline_policy = bandit_learning.baseline_policy,
-            num_random_timesteps=100,
-            num_alg_timesteps=200,
-            num_instances=1,
+            num_random_timesteps=10,
+            num_alg_timesteps=20,
+            num_instances=10,
             num_runs=num_runs,
             alpha=0.1,  
             safety_tol=0,
@@ -104,7 +104,7 @@ for num_actions in num_actions_settings:
     
     total_duration += sum([results["duration"] for results in results_dict.values()])
     
-    filename = f"2022_04_12_replicate_power_checker_result.json"
+    filename = f"2022_04_12_power_checker_10_in_parallel.json"
     bandit_learning.save_to_json(results_dict, filename)
     
 print(f"Total duration: {total_duration:0.02f} minutes.")
@@ -112,7 +112,7 @@ utils.print_run_counts_by_time(num_runs, total_duration)
 
 #%% Plot
 
-filename1 = f"2022_04_12_replicate_power_checker_result.json"
+filename1 = f"2022_04_12_power_checker_10_in_parallel.json"
 
 # filename2 = f"2021_11_30_random_polynomial_{num_actions}_actions_B.json"
 # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
