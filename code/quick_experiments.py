@@ -28,12 +28,12 @@ alg_dict = {
         bandit_learning.alg_unsafe_ts, 
         epsilon=EPSILON
         ),
-    # "FWER pretest: TS" : utils.wrapped_partial(
-    #         bandit_learning.alg_fwer_pretest_ts, 
-    #         baseline_policy=baseline_policy,
-    #         num_actions_to_test=np.inf,
-    #         epsilon=EPSILON
-    #     ),
+    "FWER pretest: TS" : utils.wrapped_partial(
+            bandit_learning.alg_fwer_pretest_ts, 
+            baseline_policy=baseline_policy,
+            num_actions_to_test=np.inf,
+            epsilon=EPSILON
+        ),
     # "Propose-test TS" : utils.wrapped_partial(
     #         bandit_learning.alg_propose_test_ts, 
     #         random_split=False, 
@@ -42,14 +42,14 @@ alg_dict = {
     #         objective_temperature=1,
     #         epsilon=EPSILON
     #     ),
-    # "SPT-TS" : utils.wrapped_partial(
-    #         bandit_learning.alg_propose_test_ts_smart_explore, 
-    #         random_split=False, 
-    #         use_out_of_sample_covariance=False,
-    #         baseline_policy=baseline_policy,
-    #         objective_temperature=1,
-    #         epsilon=EPSILON
-    #     ),
+    "SPT-TS" : utils.wrapped_partial(
+            bandit_learning.alg_propose_test_ts_smart_explore, 
+            random_split=False, 
+            use_out_of_sample_covariance=False,
+            baseline_policy=baseline_policy,
+            objective_temperature=1,
+            epsilon=EPSILON
+        ),
     # "Propose-test TS (random split)" : utils.wrapped_partial(
     #         bandit_learning.alg_propose_test_ts, 
     #         random_split=True, 
@@ -76,6 +76,8 @@ alg_dict = {
     #     )
 }
 
+num_runs = 500
+
 total_duration = 0
 num_actions_settings = [32] #, 100]
 for num_actions in num_actions_settings:
@@ -90,10 +92,10 @@ for num_actions in num_actions_settings:
             bandit_constructor,
             action_selection,
             baseline_policy = bandit_learning.baseline_policy,
-            num_random_timesteps=30,
+            num_random_timesteps=100,
             num_alg_timesteps=200,
             num_instances=1,
-            num_runs=2,
+            num_runs=num_runs,
             alpha=0.1,  
             safety_tol=0,
         )
@@ -102,28 +104,29 @@ for num_actions in num_actions_settings:
     
     total_duration += sum([results["duration"] for results in results_dict.values()])
     
-    filename = f"tmp.json"
+    filename = f"2022_04_12_replicate_power_checker_result.json"
     bandit_learning.save_to_json(results_dict, filename)
     
 print(f"Total duration: {total_duration:0.02f} minutes.")
+utils.print_run_counts_by_time(num_runs, total_duration)
 
 #%% Plot
 
-# filename1 = f"tmp.json"
+filename1 = f"2022_04_12_replicate_power_checker_result.json"
 
-# # filename2 = f"2021_11_30_random_polynomial_{num_actions}_actions_B.json"
-# # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
-# results_dict = visualize_results.read_and_process_json(filename1)
+# filename2 = f"2021_11_30_random_polynomial_{num_actions}_actions_B.json"
+# results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
+results_dict = visualize_results.read_and_process_json(filename1)
 
-# title = None #f"Power testing bandit - hard to detect unsafe actions"
-# # bandit_constructor().plot(title=title)
-# visualize_results.plot_many(
-#     results_dict.values(), 
-#     plot_confidence=True,
-#     plot_baseline_rewards=True, 
-#     plot_random_timesteps=False,
-#     include_mean_safety=False,
-#     moving_avg_window=10, 
-#     title=title,
-#     figsize=(13,5)
-# )
+title = None #f"Power testing bandit - hard to detect unsafe actions"
+# bandit_constructor().plot(title=title)
+visualize_results.plot_many(
+    results_dict.values(), 
+    plot_confidence=True,
+    plot_baseline_rewards=True, 
+    plot_random_timesteps=False,
+    include_mean_safety=False,
+    moving_avg_window=10, 
+    title=title,
+    figsize=(13,5)
+)

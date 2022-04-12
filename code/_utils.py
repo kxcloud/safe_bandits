@@ -4,6 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 
+def print_run_counts_by_time(num_runs, total_runtime):
+    runs_per_minute = num_runs / total_runtime
+    times = {"10m" : 10, "30m": 30, "1h": 60, "8h": 60*8}
+    
+    print(
+        " / ".join([
+            f"{time_label}: {runs_per_minute * minutes:0.0f}" 
+            for time_label, minutes in times.items()
+        ])
+    )
+        
 def linear_regression(x_mat, y, penalty=1e-8):
     return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
 

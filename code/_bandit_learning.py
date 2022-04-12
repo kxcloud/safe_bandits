@@ -46,6 +46,7 @@ def estimate_safety_param_and_covariance(phi_XA, S):
     cov_H = np.mean(phi_outer, axis=0) + stabilization_term
 
     beta_hat_S = utils.linear_regression(phi_XA, S)
+    
     residuals_sq = (phi_XA @ beta_hat_S - S)**2
     
     cov_G = np.mean(
@@ -69,7 +70,7 @@ def test_safety(
     
     std_err = np.sqrt(np.sum((phi_diff @ sqrt_cov)**2))
     critical_value = norm.ppf(1-alpha) * std_err / np.sqrt(n)
-       
+    
     test_stats = beta_hat_S @ phi_diff
     
     test_results = test_stats + safety_tol >= critical_value

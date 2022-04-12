@@ -37,8 +37,10 @@ def plot(
     
     for ax, result_key, title in zip(axes, result_keys, titles):
         data = results[result_key][:,t_0:]
-        mean = data.mean(axis=0)
-      
+        
+        # Average over runs (axis 0) and instances/patients (axis 2)
+        mean = data.mean(axis=(0,2))
+        
         if moving_avg_window:
             mean = pd.Series(mean).rolling(moving_avg_window).mean()
             
@@ -47,7 +49,7 @@ def plot(
         
         if plot_confidence:
             num_runs = results[result_key].shape[0]
-            std = data.std(axis=0)
+            std = data.std(axis=(0,2))
             ci_width = std * 1.96 / np.sqrt(num_runs)
             
             if moving_avg_window:
