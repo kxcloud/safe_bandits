@@ -20,7 +20,9 @@ class BanditEnv:
         self.reward_param = reward_param
         self.safety_param = safety_param
         self.outcome_covariance = outcome_covariance
-           
+        
+        self.action_idx = {action:idx for idx, action in enumerate(action_space)}
+        
     def reset(self, num_timesteps, num_instances):
         """
         Create arrays to store data from a run.
@@ -38,6 +40,7 @@ class BanditEnv:
         self.A = np.zeros((num_timesteps, num_instances))
         self.R = np.zeros((num_timesteps, num_instances))
         self.S = np.zeros((num_timesteps, num_instances))
+        self.W = np.zeros((num_timesteps, num_instances)) # sqrt importance weights
         
         self.R_mean = np.zeros((num_timesteps, num_instances))
         self.S_mean = np.zeros((num_timesteps, num_instances))
@@ -55,7 +58,7 @@ class BanditEnv:
         ).T
         return reward_noise, safety_noise
         
-    def act(self, a_batch):
+    def act(self, a_batch, a_prob_batch):
         for x, a in zip(self.current_x, a_batch):
             phi = self.feature_vector(x, a)
 
@@ -71,6 +74,7 @@ class BanditEnv:
         self.A[self.t] = a_batch
         self.R[self.t] = r
         self.S[self.t] = s
+        self.W[self.t] = np.sqrt(1/np.array(a_prob_batch))
         
         self.R_mean[self.t] = mean_reward
         self.S_mean[self.t] = mean_safety
@@ -100,6 +104,12 @@ class BanditEnv:
             return self.S[:self.t].reshape(-1).squeeze()
         else:
             return self.S[:self.t]
+        
+    def get_W(self, flatten=True):
+        if flatten:
+            return self.W[:self.t].reshape(-1).squeeze()
+        else:
+            return self.W[:self.t]
     
     def feature_vectorized(self, x_batch, a_batch):
         x_is_batched = hasattr(x_batch, "__len__")

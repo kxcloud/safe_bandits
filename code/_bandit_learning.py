@@ -38,21 +38,21 @@ def get_best_action(x, param, bandit, available_actions=None):
 
 #%% Algorithm subroutines
 
-def estimate_safety_param_and_covariance(phi_XA, S):
+def estimate_safety_param_and_covariance(phi_XA, S, sqrt_weights):
     n, p = phi_XA.shape
     phi_outer = [np.outer(phi, phi) for phi in phi_XA]
     stabilization_term = np.identity(p) * COV_STABILIZATION_AMT
     
-    cov_H = np.mean(phi_outer, axis=0) + stabilization_term
+    cov_H = np.einsum("i,ijk->jk", sqrt_weights, phi_outer)/n + stabilization_term
 
-    beta_hat_S = utils.linear_regression(phi_XA, S)
+    beta_hat_S = utils.linear_regression(phi_XA, S, sqrt_weights)
     
-    residuals_sq = (phi_XA @ beta_hat_S - S)**2
+    residuals_sq = (sqrt_weights*(phi_XA @ beta_hat_S - S))**2
     
     cov_G = np.mean(
         [phi_sq * resid_sq for (phi_sq, resid_sq) in zip(phi_outer, residuals_sq)],
         axis=0
-    ) + stabilization_term 
+    ) + stabilization_term
     
     sqrt_G = np.linalg.cholesky(cov_G)
     sqrt_cov = np.linalg.solve(cov_H, sqrt_G)
@@ -89,12 +89,12 @@ def test_many_actions(
         correct_for_multiple_testing,
         safety_tol
     ):
-    beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, S)
+    beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, S, bandit.get_W())
     
     if num_actions_to_test >= len(bandit.action_space):
         actions_to_test = bandit.action_space
         num_actions_to_test = len(bandit.action_space)
-    else:    
+    else:
         actions_to_test = np.random.choice(
             bandit.action_space, size=num_actions_to_test, replace=False
         )
@@ -121,21 +121,24 @@ def test_many_actions(
     return safe_actions
 
 def get_expected_improvement_objective(
-        x, a_baseline, phi_XA, R, S, bandit, alpha, sqrt_cov, temperature,
-        safety_tol
+        x, a_baseline, phi_XA, R, S, W, bandit, alpha, sqrt_cov, temperature,
+        safety_tol, thompson_sampling=False
     ):
     """ 
     NOTE: currently bootstraps only the reward
     """
     
-    phi_XA_bs, R_bs = bsample([phi_XA, R])    
-    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
+    if thompson_sampling:
+        phi_XA_bs, R_bs = bsample([phi_XA, R])    
+        beta_hat_R = utils.linear_regression(phi_XA_bs, R_bs, weights=None)
+    else:
+        beta_hat_R = utils.linear_regression(phi_XA, R, weights=None)
         
     num_bs_samples = 200
     beta_hats_S_bs = np.zeros((num_bs_samples, phi_XA.shape[1]))
     for bs_idx in range(num_bs_samples):
-        phi_XA_bs, S_bs = bsample([phi_XA, S])
-        beta_hats_S_bs[bs_idx,:] = utils.linear_regression(phi_XA_bs, S_bs)
+        phi_XA_bs, S_bs, W_bs = bsample([phi_XA, S, W])
+        beta_hats_S_bs[bs_idx,:] = utils.linear_regression(phi_XA_bs, S_bs, W_bs)
     
     def get_pass_prob_and_improvement(a):
         test_results, info = test_safety(
@@ -150,7 +153,7 @@ def get_expected_improvement_objective(
             safety_tol = safety_tol
         )
         estimated_pass_prob = np.mean(test_results)
-        estimated_improvement = info["phi_diff"] @ beta_hat_R_bs
+        estimated_improvement = info["phi_diff"] @ beta_hat_R
         return estimated_pass_prob, estimated_improvement
     
     def expected_improvement(a):
@@ -169,22 +172,30 @@ def maximize(objective, input_values):
     argmax = input_values[argmax_idx]
     return argmax
 
+def get_e_greedy_action_and_probs(a_greedy, epsilon, action_space):
+    if random.random() < epsilon:
+        a = np.random.choice(action_space)
+    else:
+        a = a_greedy
+    
+    if a == a_greedy:
+        return a, 1-epsilon+epsilon/len(action_space)
+    else:
+        return a, epsilon/len(action_space)
+    
+
 #%% Algorithms
 
 def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
-    
     beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
+    a_max = get_best_action(x, beta_hat_R, bandit)
     
-    a = get_best_action(x, beta_hat_R, bandit)
-    return a, {}
+    a, a_prob = get_e_greedy_action_and_probs(a_max, epsilon, bandit.action_space)
+    return a, a_prob, {}
 
 def alg_fwer_pretest_eps_greedy(
         x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon, safety_tol
-    ):   
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
+    ):
     
     a_baseline = baseline_policy(x)
     
@@ -201,12 +212,14 @@ def alg_fwer_pretest_eps_greedy(
     )
          
     if len(safe_actions) == 0:
-        return a_baseline, {}
+        a_selected = a_baseline
+    else:
+        beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R(), None)
+        a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
     
-    beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
-    a_hat = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
-    return a_hat, {}
-
+    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
+    return a, a_prob, {}
+    
 def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), {}
@@ -215,7 +228,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
     
     a = get_best_action(x, beta_hat_R_bs, bandit)
-    return a, {}
+    return a, None, {}
 
 def alg_fwer_pretest_ts(
         x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon, safety_tol
@@ -239,17 +252,17 @@ def alg_fwer_pretest_ts(
     
     info = {"safe_actions" : safe_actions}
     if len(safe_actions) == 0:
-        return a_baseline, info
+        return a_baseline, None, info
     
     if len(safe_actions) == 1:
-        return safe_actions[0], info
+        return safe_actions[0], None, info
   
     phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
     beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
     
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
     info["beta_hat_R_bs"] = beta_hat_R_bs
-    return a_hat, info
+    return a_hat, None, info
 
 def alg_propose_test_ts(
         x, 
@@ -263,14 +276,12 @@ def alg_propose_test_ts(
         safety_tol
     ):
     a_baseline = baseline_policy(x)
-
-    if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
         
     X = bandit.get_X()
     phi_XA = bandit.get_phi_XA()
     R = bandit.get_R()
     S = bandit.get_S()
+    W = bandit.get_W()
     
     if random_split:
         n = len(X)
@@ -278,21 +289,21 @@ def alg_propose_test_ts(
         for data in X, phi_XA, R, S:
             data[:] = data[shuffled_indices]
     
-    phi_XA_1, R_1, S_1 = phi_XA[::2], R[::2], S[::2]
-    phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
+    phi_XA_1, R_1, S_1, W_1 = phi_XA[::2], R[::2], S[::2], W[::2]
+    phi_XA_2, R_2, S_2, W_2 = phi_XA[1::2], R[1::2], S[1::2], W[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
+    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
     else:
-        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1)
+        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
         sqrt_cov = sqrt_cov_1
     
     expected_improvement, split = get_expected_improvement_objective(
-        x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha, sqrt_cov, objective_temperature,
-        safety_tol
+        x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
+        objective_temperature, safety_tol
     )
     
     a_hat = maximize(expected_improvement, bandit.action_space)
@@ -319,10 +330,10 @@ def alg_propose_test_ts(
         "safety_test" : safety_test
     }
 
-    if test_result:
-        return a_hat, info
-    else:
-        return a_baseline, info
+    a_selected = a_hat if test_result else a_baseline
+    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
+    return a, a_prob, info
+    
 
 def alg_propose_test_ts_smart_explore(
         x, 
@@ -337,8 +348,10 @@ def alg_propose_test_ts_smart_explore(
     ):
     """
     Matches Propose Test TS except uniform random exploration is replaced
-    by maximization of (a bootstrap resampling of) Propose-Test objective
-    which is NOT tested for safety.
+    by 1/2 chance of playing proposed action, 1/2 chance of uniform.
+    
+    OLD: ... replaced by maximization of (a bootstrap resampling of) Propose-
+    Test objective which is NOT tested for safety.
     """
     
     a_baseline = baseline_policy(x)
@@ -347,6 +360,7 @@ def alg_propose_test_ts_smart_explore(
     phi_XA = bandit.get_phi_XA()
     R = bandit.get_R()
     S = bandit.get_S()
+    W = bandit.get_W()
     
     if random_split:
         n = len(X)
@@ -354,27 +368,25 @@ def alg_propose_test_ts_smart_explore(
         for data in X, phi_XA, R, S:
             data[:] = data[shuffled_indices]
     
-    phi_XA_1, R_1, S_1 = phi_XA[::2], R[::2], S[::2]
-    phi_XA_2, R_2, S_2 = phi_XA[1::2], R[1::2], S[1::2]
+    phi_XA_1, R_1, S_1, W_1 = phi_XA[::2], R[::2], S[::2], W[::2]
+    phi_XA_2, R_2, S_2, W_2 = phi_XA[1::2], R[1::2], S[1::2], W[1::2]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2)
+    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
     else:
-        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1)
+        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
         sqrt_cov = sqrt_cov_1
     
     expected_improvement, split = get_expected_improvement_objective(
-        x, a_baseline, phi_XA_1, R_1, S_1, bandit, alpha, sqrt_cov, objective_temperature, safety_tol
+        x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
+        objective_temperature, safety_tol
     )
     
     a_hat = maximize(expected_improvement, bandit.action_space)
-    
-    if random.random() < epsilon:
-        return a_hat, {}
-    
+        
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(
         test_safety,
@@ -396,11 +408,16 @@ def alg_propose_test_ts_smart_explore(
         "split_objective": split,
         "safety_test" : safety_test
     }
-
-    if test_result:
-        return a_hat, info
-    else:
-        return a_baseline, info
+    
+    a_selected = a_hat if test_result else a_baseline
+    
+    a_probs = np.full(len(bandit.action_space), fill_value=epsilon/len(bandit.action_space)/2)
+    a_probs[bandit.action_idx[a_hat]] += epsilon/2
+    a_probs[bandit.action_idx[a_selected]] += 1-epsilon
+    a = np.random.choice(bandit.action_space, p=a_probs)
+    a_prob = a_probs[bandit.action_idx[a]]
+    return a, a_prob, info
+    
 
 def alg_propose_test_ts_fwer_fallback(
         x, bandit, alpha, baseline_policy, correct_alpha, num_actions_to_test, epsilon, safety_tol
@@ -410,7 +427,7 @@ def alg_propose_test_ts_fwer_fallback(
     alpha = alpha/2 if correct_alpha else alpha
 
     if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
+        return np.random.choice(bandit.action_space), None, {}
     
     a_safe_ts, _ = alg_propose_test_ts(
         x, bandit, alpha, baseline_policy, random_split=True, use_out_of_sample_covariance=True,
@@ -421,9 +438,9 @@ def alg_propose_test_ts_fwer_fallback(
         a_pretest, _ = alg_fwer_pretest_eps_greedy(
             x, bandit, alpha, baseline_policy, num_actions_to_test=num_actions_to_test, epsilon=0, safety_tol=safety_tol
         )
-        return a_pretest, {}
+        return a_pretest, None, {}
     else:
-        return a_safe_ts, {}
+        return a_safe_ts, None, {}
 
 #%% Evaluation functions
 
@@ -487,7 +504,6 @@ def evaluate(
         "safety_tol" : safety_tol,
         "duration" : None
     }
-
     for run_idx in range(num_runs):
         bandit = bandit_constructor()
         bandit.reset(total_timesteps, num_instances)
@@ -495,15 +511,20 @@ def evaluate(
         for i in range(num_random_timesteps):
             bandit.sample() # Note: required to step bandit forward
             a_batch = np.random.choice(bandit.action_space, size=num_instances)
-            bandit.act(a_batch)
+            a_probs_batch = np.full(len(bandit.action_space), 1/len(bandit.action_space))
+            bandit.act(a_batch, a_probs_batch)
 
         for t in range(num_alg_timesteps):
             x_batch = bandit.sample()
             a_batch = []
+            a_prob_batch = []
             for x in x_batch:
-                a, _ = learning_algorithm(x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol)
+                a, a_prob, _ = learning_algorithm(
+                    x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol
+                )
                 a_batch.append(a)
-            bandit.act(a_batch)
+                a_prob_batch.append(a_prob)
+            bandit.act(a_batch, a_prob_batch)
         
         results["mean_reward"][run_idx] = bandit.R_mean
         results["mean_safety"][run_idx] = bandit.S_mean

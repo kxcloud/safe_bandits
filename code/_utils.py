@@ -15,7 +15,10 @@ def print_run_counts_by_time(num_runs, total_runtime):
         ])
     )
         
-def linear_regression(x_mat, y, penalty=1e-8):
+def linear_regression(x_mat, y, weights, penalty=1e-8):
+    if weights is not None:
+        x_mat = np.einsum("i,ij->ij", weights, x_mat)
+        y = np.einsum("i,i->i", weights, y)
     return np.linalg.solve(x_mat.T @ x_mat + penalty * np.identity(x_mat.shape[1]), x_mat.T @ y)
 
 def wrapped_partial(func, *args, **kwargs):

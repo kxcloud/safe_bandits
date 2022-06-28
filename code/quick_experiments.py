@@ -24,12 +24,18 @@ alg_dict = {
     #         num_actions_to_test=5,
     #         epsilon=EPSILON
     #     ),
-    "Unsafe TS" : utils.wrapped_partial(
-        bandit_learning.alg_unsafe_ts, 
-        epsilon=EPSILON
-        ),
-    "FWER pretest: TS" : utils.wrapped_partial(
-            bandit_learning.alg_fwer_pretest_ts, 
+    # "Unsafe TS" : utils.wrapped_partial(
+    #     bandit_learning.alg_unsafe_ts, 
+    #     epsilon=EPSILON
+    #     ),
+    # "FWER pretest: TS" : utils.wrapped_partial(
+    #         bandit_learning.alg_fwer_pretest_ts, 
+    #         baseline_policy=baseline_policy,
+    #         num_actions_to_test=np.inf,
+    #         epsilon=EPSILON
+    #     ),
+    "FWER pretest" : utils.wrapped_partial(
+            bandit_learning.alg_fwer_pretest_eps_greedy, 
             baseline_policy=baseline_policy,
             num_actions_to_test=np.inf,
             epsilon=EPSILON
@@ -42,7 +48,15 @@ alg_dict = {
     #         objective_temperature=1,
     #         epsilon=EPSILON
     #     ),
-    "SPT-TS" : utils.wrapped_partial(
+    "SPT" : utils.wrapped_partial(
+            bandit_learning.alg_propose_test_ts, 
+            random_split=False, 
+            use_out_of_sample_covariance=False,
+            baseline_policy=baseline_policy,
+            objective_temperature=1,
+            epsilon=EPSILON
+        ),
+    "SPT (smart explore)" : utils.wrapped_partial(
             bandit_learning.alg_propose_test_ts_smart_explore, 
             random_split=False, 
             use_out_of_sample_covariance=False,
@@ -76,7 +90,7 @@ alg_dict = {
     #     )
 }
 
-num_runs = 500
+num_runs = 200
 
 total_duration = 0
 num_actions_settings = [32] #, 100]
@@ -104,7 +118,7 @@ for num_actions in num_actions_settings:
     
     total_duration += sum([results["duration"] for results in results_dict.values()])
     
-    filename = f"2022_04_12_power_checker_10_in_parallel.json"
+    filename = f"2022_06_28_power_checker_10.json"
     bandit_learning.save_to_json(results_dict, filename)
     
 print(f"Total duration: {total_duration:0.02f} minutes.")
@@ -112,7 +126,7 @@ utils.print_run_counts_by_time(num_runs, total_duration)
 
 #%% Plot
 
-filename1 = f"2022_04_12_power_checker_10_in_parallel.json"
+filename1 = f"2022_06_28_power_checker_10.json"
 
 # filename2 = f"2021_11_30_random_polynomial_{num_actions}_actions_B.json"
 # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
