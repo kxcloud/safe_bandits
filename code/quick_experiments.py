@@ -132,7 +132,10 @@ filename1 = f"2022_06_28_power_checker_10.json"
 # results_dict = visualize_results.read_combine_and_process_json([filename1,filename2])
 results_dict = visualize_results.read_and_process_json(filename1)
 
-title = None #f"Power testing bandit - hard to detect unsafe actions"
+colors = ["C1", "C3", "C2"]
+
+
+title = "Power testing bandit"
 # bandit_constructor().plot(title=title)
 visualize_results.plot_many(
     results_dict.values(), 
@@ -142,5 +145,6 @@ visualize_results.plot_many(
     include_mean_safety=False,
     moving_avg_window=10, 
     title=title,
-    figsize=(13,5)
+    figsize=(13,5),
+    colors=colors
 )

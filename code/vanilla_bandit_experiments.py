@@ -71,15 +71,18 @@ filename2 = "2022_06_28_dosage_example_C.json"
 filenames = [filename0, filename1, filename2]
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
-title = None
+colors = ["C1", "C3", "C2"]
+
+title = "Dosage bandit"
 # bandit_constructor().plot(title=title)
 visualize_results.plot_many(
     results_dict.values(), 
-    plot_confidence=True,
-    plot_baseline_rewards=False, 
+    plot_confidence=False,
+    plot_baseline_rewards=True, 
     plot_random_timesteps=False,
     include_mean_safety=False,
     moving_avg_window=10, 
     title=title,
-    figsize=(13,5)
+    figsize=(13,5),
+    colors=colors
 )
