@@ -210,6 +210,7 @@ def alg_fwer_pretest_eps_greedy(
         correct_for_multiple_testing=True,
         safety_tol = safety_tol
     )
+    info = {"safe_actions" : safe_actions}
          
     if len(safe_actions) == 0:
         a_selected = a_baseline
@@ -218,7 +219,8 @@ def alg_fwer_pretest_eps_greedy(
         a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
     
     a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
-    return a, a_prob, {}
+    info["beta_hat_R_bs"] = beta_hat_R
+    return a, a_prob, info
     
 def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     if random.random() < epsilon:

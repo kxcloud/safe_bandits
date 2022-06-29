@@ -97,94 +97,95 @@ def plot_propose_test(info, action_space, show_test_result, title=""):
     idx_max = np.argmax(objective)
     a_max = action_space[idx_max]
     
-    fig, ax = plt.subplots()
-    ax2 = ax.twinx()
-    ax.plot(action_space, split[:,0], label="estimated pass probability", c="C0", ls="--")
+    fig, ax_prob = plt.subplots()
+    ax_reward = ax_prob.twinx()
+    ax_prob.plot(action_space, split[:,0], label="estimated pass probability", c="C0", ls="--")
     
     if show_test_result:
-        ax.plot(action_space, test_results, label="would pass if tested", c="gold", lw=3.5)
+        ax_prob.scatter(action_space, test_results, c="gold")
+        ax_prob.plot(action_space, test_results, label="would pass if tested", c="gold", lw=3.5)
     
-    ax2.plot(action_space, split[:,1], label="estimated improvement", c="red")
-    ax2.plot(action_space, objective, label="objective", lw=2, c="black")
-    ax2.scatter(a_max, objective[idx_max], marker="*", c="black", s=100)
+    ax_reward.plot(action_space, split[:,1], label="estimated improvement", c="red")
+    ax_reward.plot(action_space, objective, label="objective", lw=2, c="black")
+    ax_reward.scatter(a_max, objective[idx_max], marker="*", c="black", s=100)
 
-    ax.set_title(title)
-    ax.set_ylabel("Probability")
-    ax2.set_ylabel("Reward")
-    ax.set_xlabel("Action (a)")
+    ax_prob.set_title(title)
+    ax_prob.set_ylabel("Probability")
+    ax_reward.set_ylabel("Reward")
+    ax_prob.set_xlabel("Action (a)")
     
     fig.legend(bbox_to_anchor=[1.4,0.4,0,0])
+    return ax_prob, ax_reward
 #%% 
 
-wrapped_partial = utils.wrapped_partial
+EPSILON = 0
+safety_tol = 0.1
 baseline_policy = lambda x: 0
 
-global_epsilon = 0
-safety_tol = 0.1
-
 alg_dict = {
-    "FWER pretest: TS (test all)" : wrapped_partial(
-            bandit_learning.alg_fwer_pretest_ts, 
+    "FWER pretest" : utils.wrapped_partial(
+            bandit_learning.alg_fwer_pretest_eps_greedy, 
             baseline_policy=baseline_policy,
             num_actions_to_test=np.inf,
-            epsilon=global_epsilon,
-            safety_tol = safety_tol ,
+            epsilon=EPSILON
         ),
-    "Propose-test TS" : wrapped_partial(
+    "SPT" : utils.wrapped_partial(
             bandit_learning.alg_propose_test_ts, 
             random_split=False, 
             use_out_of_sample_covariance=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
-            epsilon=global_epsilon,
-            safety_tol=safety_tol ,
+            epsilon=EPSILON
         ),
-    "Propose-test TS (OOS covariance)" : wrapped_partial(
-            bandit_learning.alg_propose_test_ts, 
+    "SPT (smart explore)" : utils.wrapped_partial(
+            bandit_learning.alg_propose_test_ts_smart_explore, 
             random_split=False, 
-            use_out_of_sample_covariance=True,
+            use_out_of_sample_covariance=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
-            epsilon=global_epsilon,
-            safety_tol=safety_tol 
+            epsilon=EPSILON
         ),
 }
 
 #%% Search for disagreement between policies
 num_random_timesteps = 100
 
-searching_for_disagreement = True
-while searching_for_disagreement:
+search_for_disagreement = False
+
+still_searching = True
+while still_searching:
     bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
+    bandit.reset(num_timesteps=num_random_timesteps, num_instances=1)
+    
     for _ in range(num_random_timesteps):
         bandit.sample() # Note: required to step bandit forward
         a = np.random.choice(bandit.action_space)
-        bandit.act(a)
+        bandit.act([a], [1/len(bandit.action_space)])
     
     x = bandit.sample() 
-    a_pretest, info_pretest = alg_dict["FWER pretest: TS (test all)"](x, bandit, alpha=0.1)
-    a_pt, info_pt = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
+    a_pretest, a_prob, info_pretest = alg_dict["FWER pretest"](x, bandit, alpha=0.1, safety_tol=safety_tol)
+    a_pt, a_prob, info_pt = alg_dict["SPT"](x, bandit, alpha=0.1, safety_tol=safety_tol)
     
-    if True:
-        searching_for_disagreement = False
+    if search_for_disagreement:
+        still_searching = False
     
     if a_pretest != a_pt:
-        searching_for_disagreement = False
+        still_searching = False
 
 (ax_r, ax_s) = plot_bandit(bandit, title="True bandit with data", baseline_policy=baseline_policy, safety_tol=safety_tol)
 ax_r.scatter(bandit.A, bandit.R, s=8, alpha=0.5)
 ax_s.scatter(bandit.A, bandit.S, s=8, alpha=0.5)
 
-phi_XA = np.array(bandit.phi_XA)
-R = np.array(bandit.R)
-S = np.array(bandit.S)
+phi_XA = bandit.get_phi_XA()
+R = bandit.get_R()
+S = bandit.get_S()
 
-beta_hat_R = utils.linear_regression(phi_XA, R)
-beta_hat_S = utils.linear_regression(phi_XA, S)
+beta_hat_R = utils.linear_regression(phi_XA, R, None)
+beta_hat_S = utils.linear_regression(phi_XA, S, None)
 
 if "beta_hat_R_bs" not in info_pretest: # This happens when no tests pass
     phi_XA_bs, R_bs = bandit_learning.bsample([phi_XA, R])    
-    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
+    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs, None)
 else:
     beta_hat_R_bs = info_pretest["beta_hat_R_bs"]
     
@@ -195,27 +196,29 @@ plot_bandit(
     safety_tol=safety_tol
 )
 
-plot_propose_test(info_pt, bandit.action_space, f"Split-Propose-Test objective (selected {a_pt})")
+plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"Split-Propose-Test objective (selected {a_pt})")
 
 #%% Plot SPT objective evolution
-num_random_timesteps = 200
+num_random_timesteps = 100
 num_alg_timesteps = 100
 plot_frequency = 10
 
 bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
+bandit.reset(num_timesteps=num_random_timesteps+num_alg_timesteps, num_instances=1)
 for _ in range(num_random_timesteps):
     bandit.sample() # Note: required to step bandit forward
     a = np.random.choice(bandit.action_space)
-    bandit.act(a)
+    bandit.act([a], [1/len(bandit.action_space)])
 
 spt_infos = []
 for t in range(num_alg_timesteps):
     x = bandit.sample()
-    a_pt, info_pt = alg_dict["Propose-test TS"](x, bandit, alpha=0.1)
-    bandit.act(a_pt)
+    a_pt, a_prob, info_pt = alg_dict["SPT"](x, bandit, alpha=0.1, safety_tol=safety_tol)
+    bandit.act([a_pt], [a_prob])
     
     if t % plot_frequency == 0:
-        plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"t={t}")
+        ax_p, ax_r = plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"t={t}")
+        ax_r.scatter(bandit.get_A()[::2], bandit.get_R()[::2], c="red", s=20, alpha=0.5)
         
     
     

@@ -92,6 +92,12 @@ class BanditEnv:
             return self.X[:self.t].reshape((-1, self.X.shape[-1]))
         else:
             return self.X[:self.t]
+
+    def get_A(self, flatten=True):
+        if flatten:
+            return self.A[:self.t].reshape(-1).squeeze()
+        else:
+            return self.A[:self.t]
         
     def get_R(self, flatten=True):
         if flatten:
