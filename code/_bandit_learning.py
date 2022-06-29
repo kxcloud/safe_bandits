@@ -511,7 +511,7 @@ def evaluate(
         for i in range(num_random_timesteps):
             bandit.sample() # Note: required to step bandit forward
             a_batch = np.random.choice(bandit.action_space, size=num_instances)
-            a_probs_batch = np.full(len(bandit.action_space), 1/len(bandit.action_space))
+            a_probs_batch = np.full(num_instances, 1/len(bandit.action_space))
             bandit.act(a_batch, a_probs_batch)
 
         for t in range(num_alg_timesteps):
