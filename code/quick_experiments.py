@@ -90,7 +90,7 @@ alg_dict = {
     #     )
 }
 
-num_runs = 200
+num_runs = 2800
 
 total_duration = 0
 num_actions_settings = [32] #, 100]

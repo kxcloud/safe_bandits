@@ -321,8 +321,8 @@ def get_dosage_example(num_actions, param_count):
     rewards = [dosage_reward(a) for a in action_space]
     safetys = [dosage_safety(a) for a in action_space]
     
-    theta_r = utils.linear_regression(ft_grid, rewards)
-    theta_s = utils.linear_regression(ft_grid, safetys)
+    theta_r = utils.linear_regression(ft_grid, rewards, None)
+    theta_s = utils.linear_regression(ft_grid, safetys, None)
     
     bandit = BanditEnv(
         x_dist=lambda : 0, 
