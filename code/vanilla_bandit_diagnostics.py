@@ -2,6 +2,7 @@ from functools import partial
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning 
@@ -116,6 +117,57 @@ def plot_propose_test(info, action_space, show_test_result, title=""):
     
     fig.legend(bbox_to_anchor=[1.4,0.4,0,0])
     return ax_prob, ax_reward
+
+def get_confidence_interval(phi_XA, response, weights, alpha, bandit, subtract_baseline):
+    beta_hat, sqrt_cov = bandit_learning.estimate_safety_param_and_covariance(phi_XA, response, weights)
+    
+    mean = np.zeros(len(bandit.action_space))
+    ci_width = np.zeros(len(bandit.action_space))
+    
+    for a_idx, a in enumerate(bandit.action_space):
+        phi = bandit.feature_vector(0,a)
+        if subtract_baseline:
+            phi -= bandit.feature_vector(0,0)
+        mean[a_idx] = phi @ beta_hat
+        ci_width[a_idx] = np.sqrt(np.sum((phi @ sqrt_cov)**2)/len(response)) * norm.ppf(1-alpha)
+    
+    return mean, ci_width
+
+def plot_data_w_ci(bandit, level, safety_tol):
+    A = bandit.get_A()
+    phi_XA = bandit.get_phi_XA()
+    S = bandit.get_S()
+    W = bandit.get_W()
+    
+    fig, axes = plt.subplots(
+        nrows=2, ncols=3, sharey="row", sharex=True, figsize=(10,5)
+    )
+    
+    n = len(A)
+    titles = ["Split 0, pointwise CI", "Split 1, pointwise CI", "Whole dataset, joint CI"]
+    indices = [np.arange(0,n,2), np.arange(1,n,2), np.arange(0,n,1)]
+    levels = [level, level, level/len(bandit.action_space) ]
+    
+    for idx, (title, indices, level) in enumerate(zip(titles, indices, levels)):
+        for subtract_baseline in [0,1]:
+            ax = axes[subtract_baseline, idx]
+            if subtract_baseline:
+                ax.axhline(-safety_tol, ls=":", c="grey")
+            else:
+                ax.scatter(A[indices], S[indices], c="C0", s=7, alpha=0.5)
+                ax.set_title(title)
+                
+            mean, ci_width = get_confidence_interval(
+                phi_XA[indices], S[indices], W[indices], level, bandit, subtract_baseline
+            )
+            ax.plot(bandit.action_space, mean, lw=2, c="C0")
+            ax.plot(bandit.action_space, mean-ci_width, ls="--", c="C0")
+            ax.plot(bandit.action_space, mean+ci_width, ls="--", c="C0")
+            
+        
+    axes[1,1].set_xlabel("Action")
+    axes[0,0].set_ylabel("Safety")
+    axes[1,0].set_ylabel("Safety difference from a=0")
 #%% 
 
 EPSILON = 0
@@ -154,7 +206,7 @@ search_for_disagreement = False
 
 still_searching = True
 while still_searching:
-    bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
+    bandit = BanditEnv.get_dosage_example(num_actions=10, param_count=10)
     bandit.reset(num_timesteps=num_random_timesteps, num_instances=1)
     
     for _ in range(num_random_timesteps):
@@ -198,27 +250,30 @@ plot_bandit(
 
 plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"Split-Propose-Test objective (selected {a_pt})")
 
+plot_data_w_ci(bandit, level=0.1, safety_tol=safety_tol)
+
 #%% Plot SPT objective evolution
-num_random_timesteps = 100
-num_alg_timesteps = 100
-plot_frequency = 10
-
-bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
-bandit.reset(num_timesteps=num_random_timesteps+num_alg_timesteps, num_instances=1)
-for _ in range(num_random_timesteps):
-    bandit.sample() # Note: required to step bandit forward
-    a = np.random.choice(bandit.action_space)
-    bandit.act([a], [1/len(bandit.action_space)])
-
-spt_infos = []
-for t in range(num_alg_timesteps):
-    x = bandit.sample()
-    a_pt, a_prob, info_pt = alg_dict["SPT"](x, bandit, alpha=0.1, safety_tol=safety_tol)
-    bandit.act([a_pt], [a_prob])
     
-    if t % plot_frequency == 0:
-        ax_p, ax_r = plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"t={t}")
-        ax_r.scatter(bandit.get_A()[::2], bandit.get_R()[::2], c="red", s=20, alpha=0.5)
-        
+# num_random_timesteps = 100
+# num_alg_timesteps = 100
+# plot_frequency = 10
+
+# bandit = BanditEnv.get_dosage_example(num_actions=20, param_count= 10)
+# bandit.reset(num_timesteps=num_random_timesteps+num_alg_timesteps, num_instances=1)
+# for _ in range(num_random_timesteps):
+#     bandit.sample() # Note: required to step bandit forward
+#     a = np.random.choice(bandit.action_space)
+#     bandit.act([a], [1/len(bandit.action_space)])
+
+# spt_infos = []
+# for t in range(num_alg_timesteps):
+#     x = bandit.sample()
+#     a_pt, a_prob, info_pt = alg_dict["SPT"](x, bandit, alpha=0.1, safety_tol=safety_tol)
+#     bandit.act([a_pt], [a_prob])
     
+#     if t % plot_frequency == 0:
+#         ax_p, ax_r = plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"t={t}")
+#         ax_r.scatter(bandit.get_A()[::2], bandit.get_R()[::2], c="red", s=20, alpha=0.5)
+
+
     
