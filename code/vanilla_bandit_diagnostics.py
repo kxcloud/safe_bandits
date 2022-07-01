@@ -118,7 +118,7 @@ def plot_propose_test(info, action_space, show_test_result, title=""):
     fig.legend(bbox_to_anchor=[1.4,0.4,0,0])
     return ax_prob, ax_reward
 
-def get_confidence_interval(phi_XA, response, weights, alpha, bandit, subtract_baseline):
+def get_confidence_interval(phi_XA, response, weights, alpha, bandit, baseline_policy):
     beta_hat, sqrt_cov = bandit_learning.estimate_safety_param_and_covariance(phi_XA, response, weights)
     
     mean = np.zeros(len(bandit.action_space))
@@ -126,14 +126,14 @@ def get_confidence_interval(phi_XA, response, weights, alpha, bandit, subtract_b
     
     for a_idx, a in enumerate(bandit.action_space):
         phi = bandit.feature_vector(0,a)
-        if subtract_baseline:
-            phi -= bandit.feature_vector(0,0)
+        if baseline_policy is not None:
+            phi -= bandit.feature_vector(0, baseline_policy(0))
         mean[a_idx] = phi @ beta_hat
         ci_width[a_idx] = np.sqrt(np.sum((phi @ sqrt_cov)**2)/len(response)) * norm.ppf(1-alpha)
     
     return mean, ci_width
 
-def plot_data_w_ci(bandit, level, safety_tol):
+def plot_data_w_ci(bandit, level, safety_tol, baseline_policy):
     A = bandit.get_A()
     phi_XA = bandit.get_phi_XA()
     S = bandit.get_S()
@@ -158,7 +158,8 @@ def plot_data_w_ci(bandit, level, safety_tol):
                 ax.set_title(title)
                 
             mean, ci_width = get_confidence_interval(
-                phi_XA[indices], S[indices], W[indices], level, bandit, subtract_baseline
+                phi_XA[indices], S[indices], W[indices], level, bandit, 
+                baseline_policy if subtract_baseline else None
             )
             ax.plot(bandit.action_space, mean, lw=2, c="C0")
             ax.plot(bandit.action_space, mean-ci_width, ls="--", c="C0")
@@ -185,18 +186,20 @@ alg_dict = {
             bandit_learning.alg_propose_test_ts, 
             random_split=False, 
             use_out_of_sample_covariance=False,
+            sample_overlap=0,
             baseline_policy=baseline_policy,
             objective_temperature=1,
             epsilon=EPSILON
         ),
-    "SPT (smart explore)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts_smart_explore, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
+    # "SPT (smart explore)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts_smart_explore, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=0,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
 }
 
 #%% Search for disagreement between policies
@@ -206,7 +209,7 @@ search_for_disagreement = False
 
 still_searching = True
 while still_searching:
-    bandit = BanditEnv.get_dosage_example(num_actions=10, param_count=10)
+    bandit = BanditEnv.get_dosage_example(num_actions=20, param_count=10)
     bandit.reset(num_timesteps=num_random_timesteps, num_instances=1)
     
     for _ in range(num_random_timesteps):
@@ -248,9 +251,12 @@ plot_bandit(
     safety_tol=safety_tol
 )
 
-plot_propose_test(info_pt, bandit.action_space, show_test_result=True, title=f"Split-Propose-Test objective (selected {a_pt})")
+plot_propose_test(
+    info_pt, bandit.action_space, show_test_result=True, 
+    title=f"Split-Propose-Test objective (selected {a_pt})"
+)
 
-plot_data_w_ci(bandit, level=0.1, safety_tol=safety_tol)
+plot_data_w_ci(bandit, level=0.1, safety_tol=safety_tol, baseline_policy=baseline_policy)
 
 #%% Plot SPT objective evolution
     

@@ -23,49 +23,49 @@ alg_dict = {
             objective_temperature=1,
             epsilon=EPSILON
         ),
-    "SPT (smart explore)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts_smart_explore, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            sample_overlap=0,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
-    "SPT (overlap=0.5)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            sample_overlap=0.5,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
-    "SPT (smart explore) (overlap=0.5)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts_smart_explore, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            sample_overlap=0.5,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
-    "SPT (overlap=1)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            sample_overlap=1,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
-    "SPT (smart explore) (overlap=1)" : utils.wrapped_partial(
-            bandit_learning.alg_propose_test_ts_smart_explore, 
-            random_split=False, 
-            use_out_of_sample_covariance=False,
-            sample_overlap=1,
-            baseline_policy=baseline_policy,
-            objective_temperature=1,
-            epsilon=EPSILON
-        ),
+    # "SPT (smart explore)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts_smart_explore, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=0,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
+    # "SPT (overlap=0.5)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=0.5,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
+    # "SPT (smart explore) (overlap=0.5)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts_smart_explore, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=0.5,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
+    # "SPT (overlap=1)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=1,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
+    # "SPT (smart explore) (overlap=1)" : utils.wrapped_partial(
+    #         bandit_learning.alg_propose_test_ts_smart_explore, 
+    #         random_split=False, 
+    #         use_out_of_sample_covariance=False,
+    #         sample_overlap=1,
+    #         baseline_policy=baseline_policy,
+    #         objective_temperature=1,
+    #         epsilon=EPSILON
+    #     ),
 }
