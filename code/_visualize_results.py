@@ -11,6 +11,45 @@ code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
+def tabulate_final_timestep_results(
+        results_list,
+        include_random_timesteps,
+        include_mean_safety,
+        moving_avg_window=None
+    ):
+    if include_mean_safety:
+        data_keys = ["mean_reward", "mean_safety", "safety_ind", "agreed_with_baseline"]
+    else:
+        data_keys = ["mean_reward", "safety_ind", "agreed_with_baseline"]
+            
+    records = []
+    for results in results_list:
+        record = [results["alg_label"]]
+        for data_key in data_keys:
+            data = results[data_key][:,-1]
+             
+            # Average over runs (axis 0) and instances/patients (axis 2)
+            mean = data.mean()
+             
+            if moving_avg_window:
+               mean = pd.Series(mean).rolling(moving_avg_window).mean()
+             
+            num_runs = results[data_key].shape[0]
+            std = data.std()
+            ci_width = std * 1.96 / np.sqrt(num_runs)
+         
+            if moving_avg_window:
+                ci_width = pd.Series(ci_width).rolling(moving_avg_window).mean()
+            
+            record = record + [mean, ci_width]
+        records.append(record)
+        
+    column_names = ["alg_label"]
+    for data_key in data_keys:
+        column_names += [data_key, data_key+"_moe"]
+    df = pd.DataFrame(records, columns=column_names)
+    return df
+
 def plot(
         results, 
         axes, 
@@ -94,7 +133,6 @@ def plot_many(
         colors = [None]*len(results_list)
         
     for results, color in zip(results_list, colors):
-        
         plot(
             results, 
             axes=axes, 
@@ -115,6 +153,33 @@ def plot_many(
     plt.legend(loc='best', bbox_to_anchor=(0.5, 0., 0.5, 0.5))
     plt.suptitle(title)
     plt.show()
+
+def plot_action_dist(results_list, num_to_plot, title=None):
+    fig, axes = plt.subplots(
+        ncols=len(results_list), sharex=True, sharey=True
+    )
+    axes[0].set_xlabel("Action")
+    fig.suptitle(title)
+    
+    for result, ax in zip(results_list, axes):
+        ax.set_yticks([])
+        ax.set_title(result["alg_label"])
+        action_freq = result["action_frequency"]
+        action_space = result["action_space"]
+        annotation_x = (action_space[0] + action_space[-1])*0.85
+        
+        num_timesteps = action_freq.shape[0]
+        
+        timesteps_to_plot = np.linspace(0, num_timesteps-1, num_to_plot).astype(int)
+        alphas = np.linspace(0.4, 1, num_to_plot)
+        for t_idx, t in enumerate(timesteps_to_plot):
+            height = num_to_plot-t_idx
+            
+            ax.plot(action_space, height+action_freq[t,:], c="C0", alpha=alphas[t_idx])
+            
+            if t_idx in [0, 1, num_to_plot-1]:
+                ax.annotate(f"t={t}", (annotation_x, height+0.1))
+    return axes 
 
 def read_and_process_json(filename):
     with open(os.path.join(data_path,filename), 'r') as f:

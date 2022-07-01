@@ -501,6 +501,8 @@ def evaluate(
     ):
     start_time = time.time()
 
+    action_space = bandit_constructor().action_space
+    
     total_timesteps = num_random_timesteps + num_alg_timesteps
     results = {
         "bandit_name" : bandit_constructor().__class__.__name__,
@@ -513,10 +515,13 @@ def evaluate(
         "mean_safety" : np.zeros((num_runs, total_timesteps, num_instances)),
         "safety_ind" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "agreed_with_baseline" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
+        "action_frequency" : np.zeros((num_alg_timesteps, len(action_space))),
+        "action_space" : action_space,
         "alpha" : alpha,
         "safety_tol" : safety_tol,
         "duration" : None
     }
+    
     for run_idx in range(num_runs):
         bandit = bandit_constructor()
         bandit.reset(total_timesteps, num_instances)
@@ -536,6 +541,7 @@ def evaluate(
                     x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol
                 )
                 a_batch.append(a)
+                results["action_frequency"][t, bandit.action_idx[a]] += 1
                 a_prob_batch.append(a_prob)
             bandit.act(a_batch, a_prob_batch)
         
@@ -560,6 +566,7 @@ def evaluate(
     )              
     results["best_safe_reward"] = best_safe_reward
     results["baseline_reward"] = baseline_reward    
+    results["action_frequency"] /= num_runs
     
     duration = (time.time() - start_time)/60
     results["duration"] = duration
