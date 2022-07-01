@@ -154,31 +154,38 @@ def plot_many(
     plt.suptitle(title)
     plt.show()
 
-def plot_action_dist(results_list, num_to_plot, title=None):
+def plot_action_dist(results_list, num_to_plot, drop_first_action, title=None):
+    assert drop_first_action in [0,1]
     fig, axes = plt.subplots(
         ncols=len(results_list), sharex=True, sharey=True
     )
     axes[0].set_xlabel("Action")
     fig.suptitle(title)
     
-    for result, ax in zip(results_list, axes):
+    action_freqs = [
+        np.mean(result["action_inds"][:,:,:,drop_first_action:], axis=(0,2))
+        for result in results_list
+    ]
+    max_prob = np.max([np.max(action_freq) for action_freq in action_freqs])
+    
+    for ax, action_freq, result in zip(axes, action_freqs, results_list):
         ax.set_yticks([])
         ax.set_title(result["alg_label"])
-        action_freq = result["action_frequency"]
-        action_space = result["action_space"]
-        annotation_x = (action_space[0] + action_space[-1])*0.85
+        action_space = result["action_space"][drop_first_action:]
+        annotation_x = (action_space[0] + action_space[-1])*0.8
         
         num_timesteps = action_freq.shape[0]
         
         timesteps_to_plot = np.linspace(0, num_timesteps-1, num_to_plot).astype(int)
         alphas = np.linspace(0.4, 1, num_to_plot)
         for t_idx, t in enumerate(timesteps_to_plot):
-            height = num_to_plot-t_idx
+            height = (num_to_plot-t_idx)*max_prob
             
             ax.plot(action_space, height+action_freq[t,:], c="C0", alpha=alphas[t_idx])
+            ax.plot(action_space, np.full(len(action_space), height), lw=1, ls=":", c="black", alpha=0.5)
             
             if t_idx in [0, 1, num_to_plot-1]:
-                ax.annotate(f"t={t}", (annotation_x, height+0.1))
+                ax.annotate(f"t={t}", (annotation_x, height+max_prob*0.1))
     return axes 
 
 def read_and_process_json(filename):
@@ -212,12 +219,13 @@ def read_combine_and_process_json(filenames):
                 
                 for setting, data in run_data.items():
                     new_data = results_dict[run_label][setting]
-                    if type(data) is list:
-                        data.extend(new_data)
-                    elif type(data) is str:
+                    if type(data) is str or setting == "action_space":
                         assert data == new_data, (
                             f"Run setting mismatch during merge (setting={setting})."
                         )
+                    elif type(data) is list:
+                        data.extend(new_data)
+
                     elif setting == "duration":
                         run_data[setting] += new_data
 

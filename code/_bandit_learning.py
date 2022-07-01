@@ -515,10 +515,11 @@ def evaluate(
         "mean_safety" : np.zeros((num_runs, total_timesteps, num_instances)),
         "safety_ind" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "agreed_with_baseline" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
-        "action_frequency" : np.zeros((num_alg_timesteps, len(action_space))),
+        "action_inds" : np.zeros((num_runs, num_alg_timesteps, num_instances, len(action_space)), dtype=bool),
         "action_space" : action_space,
         "alpha" : alpha,
         "safety_tol" : safety_tol,
+        "num_runs" : num_runs,
         "duration" : None
     }
     
@@ -536,12 +537,12 @@ def evaluate(
             x_batch = bandit.sample()
             a_batch = []
             a_prob_batch = []
-            for x in x_batch:
+            for instance_idx, x in enumerate(x_batch):
                 a, a_prob, _ = learning_algorithm(
                     x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol
                 )
                 a_batch.append(a)
-                results["action_frequency"][t, bandit.action_idx[a]] += 1
+                results["action_inds"][run_idx, t, instance_idx, bandit.action_idx[a]] = 1
                 a_prob_batch.append(a_prob)
             bandit.act(a_batch, a_prob_batch)
         
@@ -566,7 +567,6 @@ def evaluate(
     )              
     results["best_safe_reward"] = best_safe_reward
     results["baseline_reward"] = baseline_reward    
-    results["action_frequency"] /= num_runs
     
     duration = (time.time() - start_time)/60
     results["duration"] = duration
