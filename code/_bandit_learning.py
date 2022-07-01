@@ -182,7 +182,14 @@ def get_e_greedy_action_and_probs(a_greedy, epsilon, action_space):
         return a, 1-epsilon+epsilon/len(action_space)
     else:
         return a, epsilon/len(action_space)
-    
+
+def get_splits(random_seeds, overlap):
+    # Given an array of random seeds and an overlap criterion, returns indices
+    # for sample splitting
+    assert 0 <= overlap <= 1, "overlap must be between 0 and 1"
+    indices_0 = np.nonzero(random_seeds <= 0.5 + overlap/2)
+    indices_1 = np.nonzero(random_seeds > 0.5 - overlap/2)
+    return indices_0, indices_1
 
 #%% Algorithms
 
@@ -274,6 +281,7 @@ def alg_propose_test_ts(
         random_split, 
         objective_temperature, 
         use_out_of_sample_covariance,
+        sample_overlap,
         epsilon,
         safety_tol
     ):
@@ -291,8 +299,9 @@ def alg_propose_test_ts(
         for data in X, phi_XA, R, S:
             data[:] = data[shuffled_indices]
     
-    phi_XA_1, R_1, S_1, W_1 = phi_XA[::2], R[::2], S[::2], W[::2]
-    phi_XA_2, R_2, S_2, W_2 = phi_XA[1::2], R[1::2], S[1::2], W[1::2]
+    indices_0, indices_1 = get_splits(bandit.get_U(), sample_overlap)
+    phi_XA_1, R_1, S_1, W_1 = phi_XA[indices_0], R[indices_0], S[indices_0], W[indices_0]
+    phi_XA_2, R_2, S_2, W_2 = phi_XA[indices_1], R[indices_1], S[indices_1], W[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
     beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
@@ -345,6 +354,7 @@ def alg_propose_test_ts_smart_explore(
         random_split, 
         objective_temperature, 
         use_out_of_sample_covariance,
+        sample_overlap,
         epsilon,
         safety_tol
     ):
@@ -370,8 +380,9 @@ def alg_propose_test_ts_smart_explore(
         for data in X, phi_XA, R, S:
             data[:] = data[shuffled_indices]
     
-    phi_XA_1, R_1, S_1, W_1 = phi_XA[::2], R[::2], S[::2], W[::2]
-    phi_XA_2, R_2, S_2, W_2 = phi_XA[1::2], R[1::2], S[1::2], W[1::2]
+    indices_0, indices_1 = get_splits(bandit.get_U(), sample_overlap)
+    phi_XA_1, R_1, S_1, W_1 = phi_XA[indices_0], R[indices_0], S[indices_0], W[indices_0]
+    phi_XA_2, R_2, S_2, W_2 = phi_XA[indices_1], R[indices_1], S[indices_1], W[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
     beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)

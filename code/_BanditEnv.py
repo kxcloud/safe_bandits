@@ -41,6 +41,7 @@ class BanditEnv:
         self.R = np.zeros((num_timesteps, num_instances))
         self.S = np.zeros((num_timesteps, num_instances))
         self.W = np.zeros((num_timesteps, num_instances)) # sqrt importance weights
+        self.U = np.random.uniform(size=(num_timesteps, num_instances)) # random seeds for alg
         
         self.R_mean = np.zeros((num_timesteps, num_instances))
         self.S_mean = np.zeros((num_timesteps, num_instances))
@@ -116,6 +117,12 @@ class BanditEnv:
             return self.W[:self.t].reshape(-1).squeeze()
         else:
             return self.W[:self.t]
+        
+    def get_U(self, flatten=True):
+        if flatten:
+            return self.U[:self.t].reshape(-1).squeeze()
+        else:
+            return self.U[:self.t]
     
     def feature_vectorized(self, x_batch, a_batch):
         x_is_batched = hasattr(x_batch, "__len__")
