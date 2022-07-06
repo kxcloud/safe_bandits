@@ -7,11 +7,11 @@ import _bandit_learning as bandit_learning
 import _visualize_results as visualize_results
 import _utils as utils
 
-import run_settings.settings_2022_07_06 as run_settings
+import run_settings.settings_2022_07_06_b as run_settings
 
 bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
-num_runs = 1100
+num_runs = 360
 
 #%% Run
 results_dict = {}
@@ -34,13 +34,13 @@ total_duration = sum([results["duration"] for results in results_dict.values()])
 print(f"Total duration: {total_duration:0.02f} minutes.")
 utils.print_run_counts_by_time(num_runs, total_duration)
 
-bandit_learning.save_to_json(results_dict, "2022_07_06_dosage_TS_2C.json")
+bandit_learning.save_to_json(results_dict, "2022_07_06_b_dosage_C.json")
 
 # %% Plot
 
-filename0 = "2022_07_06_dosage_TS_2A.json"
-filename1 = "2022_07_06_dosage_TS_2B.json"
-filename2 = "2022_07_06_dosage_TS_2C.json"
+filename0 = "2022_07_06_b_dosage_A.json"
+filename1 = "2022_07_06_b_dosage_B.json"
+filename2 = "2022_07_06_b_dosage_C.json"
 filenames = [filename0, filename1, filename2]
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 

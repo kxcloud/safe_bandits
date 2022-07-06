@@ -283,6 +283,7 @@ def alg_propose_test_ts(
         use_out_of_sample_covariance,
         sample_overlap,
         thompson_sampling,
+        can_propose_baseline_action,
         epsilon,
         safety_tol
     ):
@@ -318,7 +319,12 @@ def alg_propose_test_ts(
         objective_temperature, safety_tol, thompson_sampling
     )
     
-    a_hat = maximize(expected_improvement, bandit.action_space)
+    if can_propose_baseline_action:
+        action_space = bandit.action_space
+    else:
+        action_space = [a for a in bandit.action_space if a != a_baseline]
+    
+    a_hat = maximize(expected_improvement, action_space)
     
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(
@@ -357,6 +363,7 @@ def alg_propose_test_ts_smart_explore(
         use_out_of_sample_covariance,
         sample_overlap,
         thompson_sampling,
+        can_propose_baseline_action,
         epsilon,
         safety_tol
     ):
@@ -400,7 +407,12 @@ def alg_propose_test_ts_smart_explore(
         objective_temperature, safety_tol, thompson_sampling
     )
     
-    a_hat = maximize(expected_improvement, bandit.action_space)
+    if can_propose_baseline_action:
+        action_space = bandit.action_space
+    else:
+        action_space = [a for a in bandit.action_space if a != a_baseline]
+    
+    a_hat = maximize(expected_improvement, action_space)
         
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(
@@ -564,15 +576,15 @@ def evaluate(
         safety_baseline = phi_baseline @ bandit.safety_param
         results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline - safety_tol - 1e-8
 
+    duration = (time.time() - start_time)/60
+    results["duration"] = duration
+
     best_safe_reward, baseline_reward = get_reward_baselines(
         bandit_constructor(), baseline_policy, safety_tol
     )              
     results["best_safe_reward"] = best_safe_reward
     results["baseline_reward"] = baseline_reward    
-    
-    duration = (time.time() - start_time)/60
-    results["duration"] = duration
-    
+        
     if print_time:
         print(
             f"Evaluated {learning_algorithm.__name__} {num_runs}"
