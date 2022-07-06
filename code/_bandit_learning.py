@@ -30,7 +30,7 @@ def get_best_action(x, param, bandit, available_actions=None):
     max_value = -np.inf
     a_max = None
     for a in available_actions:    
-        action_value = bandit.feature_vector(x, a) @ param
+        action_value = bandit.feature_vectorized(x, a) @ param
         if action_value > max_value:
             max_value = action_value
             a_max = a
@@ -71,7 +71,7 @@ def test_safety(
     std_err = np.sqrt(np.sum((phi_diff @ sqrt_cov)**2))
     critical_value = norm.ppf(1-alpha) * std_err / np.sqrt(n)
     
-    test_stats = beta_hat_S @ phi_diff
+    test_stats = beta_hat_S @ phi_diff.squeeze()
     
     test_results = test_stats + safety_tol >= critical_value
     
@@ -111,7 +111,7 @@ def test_many_actions(
             beta_hat_S = beta_hat_S,
             sqrt_cov = sqrt_cov,
             alpha = alpha,
-            phi = bandit.feature_vector,
+            phi = bandit.feature_vectorized,
             n = len(phi_XA),
             safety_tol = safety_tol
         )
@@ -122,7 +122,7 @@ def test_many_actions(
 
 def get_expected_improvement_objective(
         x, a_baseline, phi_XA, R, S, W, bandit, alpha, sqrt_cov, temperature,
-        safety_tol, thompson_sampling=False
+        safety_tol, thompson_sampling
     ):
     """ 
     NOTE: currently bootstraps only the reward
@@ -148,12 +148,12 @@ def get_expected_improvement_objective(
             beta_hat_S = beta_hats_S_bs,
             sqrt_cov = sqrt_cov,
             alpha = alpha,
-            phi = bandit.feature_vector,
+            phi = bandit.feature_vectorized,
             n = len(R),
             safety_tol = safety_tol
         )
         estimated_pass_prob = np.mean(test_results)
-        estimated_improvement = info["phi_diff"] @ beta_hat_R
+        estimated_improvement = info["phi_diff"].squeeze() @ beta_hat_R
         return estimated_pass_prob, estimated_improvement
     
     def expected_improvement(a):
@@ -231,10 +231,10 @@ def alg_fwer_pretest_eps_greedy(
     
 def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
+        return np.random.choice(bandit.action_space), None, {}
     
     phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
-    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
+    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs, None)
     
     a = get_best_action(x, beta_hat_R_bs, bandit)
     return a, None, {}
@@ -243,7 +243,7 @@ def alg_fwer_pretest_ts(
         x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon, safety_tol
     ):
     if random.random() < epsilon:
-        return np.random.choice(bandit.action_space), {}
+        return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
     
@@ -267,7 +267,7 @@ def alg_fwer_pretest_ts(
         return safe_actions[0], None, info
   
     phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
-    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs)
+    beta_hat_R_bs = utils.linear_regression(phi_XA_bs, R_bs, None)
     
     a_hat = get_best_action(x, beta_hat_R_bs, bandit, available_actions=safe_actions)
     info["beta_hat_R_bs"] = beta_hat_R_bs
@@ -282,6 +282,7 @@ def alg_propose_test_ts(
         objective_temperature, 
         use_out_of_sample_covariance,
         sample_overlap,
+        thompson_sampling,
         epsilon,
         safety_tol
     ):
@@ -314,7 +315,7 @@ def alg_propose_test_ts(
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
-        objective_temperature, safety_tol
+        objective_temperature, safety_tol, thompson_sampling
     )
     
     a_hat = maximize(expected_improvement, bandit.action_space)
@@ -327,7 +328,7 @@ def alg_propose_test_ts(
         beta_hat_S = beta_hat_S_2,
         sqrt_cov = sqrt_cov_2,
         alpha = alpha,
-        phi = bandit.feature_vector,
+        phi = bandit.feature_vectorized,
         n = len(S_2),
         safety_tol = safety_tol
     )
@@ -355,6 +356,7 @@ def alg_propose_test_ts_smart_explore(
         objective_temperature, 
         use_out_of_sample_covariance,
         sample_overlap,
+        thompson_sampling,
         epsilon,
         safety_tol
     ):
@@ -395,7 +397,7 @@ def alg_propose_test_ts_smart_explore(
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
-        objective_temperature, safety_tol
+        objective_temperature, safety_tol, thompson_sampling
     )
     
     a_hat = maximize(expected_improvement, bandit.action_space)
@@ -408,7 +410,7 @@ def alg_propose_test_ts_smart_explore(
         beta_hat_S = beta_hat_S_2,
         sqrt_cov = sqrt_cov_2,
         alpha = alpha,
-        phi = bandit.feature_vector,
+        phi = bandit.feature_vectorized,
         n = len(S_2),
         safety_tol = safety_tol
     )
@@ -461,7 +463,7 @@ def get_reward_baselines(bandit, baseline_policy, safety_tol, num_samples=2000):
     bandit.reset(num_timesteps=1, num_instances=num_samples)
     X = bandit.sample()
         
-    phi_baseline = bandit.feature_vectorized(X, baseline_policy(X))
+    phi_baseline = bandit.feature_vectorized(X, [baseline_policy(x) for x in X])
     safety_baseline = phi_baseline @ bandit.safety_param
     
     # Figure out the best reward obtainable by oracle safe policy
@@ -549,7 +551,7 @@ def evaluate(
         results["mean_reward"][run_idx] = bandit.R_mean
         results["mean_safety"][run_idx] = bandit.S_mean
         
-        agreement = baseline_policy(bandit.X) == bandit.A
+        agreement = [baseline_policy(x) == a for (x,a) in zip(bandit.X, bandit.A)]
         results["agreed_with_baseline"][run_idx] = agreement
         
         # Evaluate safety
@@ -558,7 +560,7 @@ def evaluate(
             for instance_idx in range(num_instances):
                 x = bandit.X[t, instance_idx]
                 a_safe = baseline_policy(x)
-                phi_baseline[t, instance_idx] = bandit.feature_vector(x, a_safe)
+                phi_baseline[t, instance_idx] = bandit.feature_vectorized(x, a_safe)
         safety_baseline = phi_baseline @ bandit.safety_param
         results["safety_ind"][run_idx] = bandit.S_mean >= safety_baseline - safety_tol - 1e-8
 
