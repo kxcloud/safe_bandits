@@ -40,7 +40,7 @@ class BanditEnv:
         self.A = np.zeros((num_timesteps, num_instances))
         self.R = np.zeros((num_timesteps, num_instances))
         self.S = np.zeros((num_timesteps, num_instances))
-        self.W = np.zeros((num_timesteps, num_instances)) # sqrt importance weights
+        self.W = np.ones((num_timesteps, num_instances)) # sqrt importance weights
         self.U = np.random.uniform(size=(num_timesteps, num_instances)) # random seeds for alg
         
         self.R_mean = np.zeros((num_timesteps, num_instances))
@@ -75,7 +75,7 @@ class BanditEnv:
         self.A[self.t] = a_batch
         self.R[self.t] = r
         self.S[self.t] = s
-        self.W[self.t] = np.sqrt(1/np.array(a_prob_batch))
+        # self.W[self.t] = np.sqrt(1/np.array(a_prob_batch))
         
         self.R_mean[self.t] = mean_reward
         self.S_mean[self.t] = mean_safety
@@ -318,10 +318,10 @@ def get_dosage_example(num_actions, param_count):
     nearby dosage levels using a radial basis function representation for 
     features.
     """
-    dosage_reward = lambda x : 1 - 1/np.exp(5*x)
-    dosage_safety = lambda x : 1 - 1/np.exp(-5*(x-1))
-    
     action_space = np.linspace(0, 1, num_actions).round(3)
+    
+    dosage_reward = lambda a : 1 - 1/np.exp(5*a)
+    dosage_safety = lambda a : 1 - 1/np.exp(-5*(a-1))
     
     rbf_feature_vector = utils.wrapped_partial(
         standard_bandit_rbf_feature, param_count=param_count    
@@ -343,17 +343,28 @@ def get_dosage_example(num_actions, param_count):
         feature_vector=rbf_feature_vector,
         reward_param=theta_r,
         safety_param=theta_s,
-        outcome_covariance=[[0.1,0],[0,0.1]]
+        outcome_covariance=[[0.01,0],[0,0.01]]
     )
     return bandit
 
 if __name__ == "__main__":
-    num_instances = 2
-    bandit = get_dosage_example(3, 7)
+    num_instances = 1
+    bandit = get_dosage_example(20, 10)
     bandit.reset(num_timesteps=5, num_instances=num_instances)
     
     x = bandit.sample()
-    bandit.act([bandit.action_space[0] for _ in range(num_instances)])
+    bandit.act([bandit.action_space[0] for _ in range(num_instances)], np.ones(num_instances))
     
     x = bandit.sample()
-    bandit.act([bandit.action_space[0] for _ in range(num_instances)])
+    bandit.act([bandit.action_space[0] for _ in range(num_instances)], np.ones(num_instances))
+    
+    fig, ax = plt.subplots()
+    x = bandit.x_dist()
+    ax.set_title(f"Action representations at x={x}")
+    ax.set_xlabel("Parameter weights")
+    
+    alphas = np.linspace(0.2, 1, len(bandit.action_space))
+    for idx, (a, alpha) in enumerate(zip(bandit.action_space, alphas)):
+        if idx % 3 ==0:
+            ax.plot(bandit.feature_vector(x,a), label=a, alpha=alpha, c="C0")
+    
