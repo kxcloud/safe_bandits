@@ -37,7 +37,7 @@ class BanditEnv:
         
         self.X = np.zeros((num_timesteps, num_instances, x_length))
         self.phi_XA = np.zeros((num_timesteps, num_instances, feature_length))
-        self.A = np.zeros((num_timesteps, num_instances))
+        self.A = np.zeros_like(self.action_space, shape=(num_timesteps, num_instances))
         self.R = np.zeros((num_timesteps, num_instances))
         self.S = np.zeros((num_timesteps, num_instances))
         self.W = np.ones((num_timesteps, num_instances)) # sqrt importance weights
