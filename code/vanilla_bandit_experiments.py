@@ -7,7 +7,7 @@ import _bandit_learning as bandit_learning
 import _visualize_results as visualize_results
 import _utils as utils
 
-import run_settings.settings_2022_07_05 as run_settings
+import run_settings.settings_2022_07_06 as run_settings
 
 bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
@@ -34,13 +34,13 @@ total_duration = sum([results["duration"] for results in results_dict.values()])
 print(f"Total duration: {total_duration:0.02f} minutes.")
 utils.print_run_counts_by_time(num_runs, total_duration)
 
-bandit_learning.save_to_json(results_dict, "2022_07_05_dosage_TS_2C.json")
+bandit_learning.save_to_json(results_dict, "2022_07_06_dosage_TS_2C.json")
 
 # %% Plot
 
-filename0 = "2022_07_05_dosage_TS_2A.json"
-filename1 = "2022_07_05_dosage_TS_2B.json"
-filename2 = "2022_07_05_dosage_TS_2C.json"
+filename0 = "2022_07_06_dosage_TS_2A.json"
+filename1 = "2022_07_06_dosage_TS_2B.json"
+filename2 = "2022_07_06_dosage_TS_2C.json"
 filenames = [filename0, filename1, filename2]
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
@@ -54,15 +54,17 @@ visualize_results.plot_many(
     plot_baseline_rewards=False, 
     plot_random_timesteps=False,
     include_mean_safety=False,
-    moving_avg_window=2, 
+    moving_avg_window=20, 
     title=title,
     figsize=(13,5),
     colors=colors
 )
 
-results_list = results_dict.values()
-for drop_first_action in [0,1]:
-    if drop_first_action:
-        title += " (omit first action)"
-    visualize_results.plot_action_dist(results_list, 7, drop_first_action, (12,4), title)
+visualize_results.plot_action_dist(
+    results_dict.values(), 
+    num_to_plot=5, 
+    drop_first_action=False, 
+    figsize=(14,4), 
+    title=title
+)
 
