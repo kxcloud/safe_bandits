@@ -60,8 +60,7 @@ class BanditEnv:
         return reward_noise, safety_noise
         
     def act(self, a_batch, a_prob_batch):
-        for x, a in zip(self.current_x, a_batch):
-            phi = self.feature_vector(x, a)
+        phi = self.feature_vectorized(self.current_x, a_batch)
 
         mean_reward = phi @ self.reward_param
         mean_safety = phi @ self.safety_param
