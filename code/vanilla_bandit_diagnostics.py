@@ -145,7 +145,7 @@ def plot_data_w_ci(bandit, level, safety_tol, baseline_policy):
     
     n = len(A)
     titles = ["Split 0, pointwise CI", "Split 1, pointwise CI", "Whole dataset, joint CI"]
-    indices = [np.arange(0,n,2), np.arange(1,n,2), np.arange(0,n,1)]
+    indices = [*bandit_learning.get_splits(bandit.get_U(), overlap=0), np.arange(0,n,1)]
     levels = [level, level, level/len(bandit.action_space) ]
     
     for idx, (title, indices, level) in enumerate(zip(titles, indices, levels)):
@@ -174,6 +174,7 @@ def plot_data_w_ci(bandit, level, safety_tol, baseline_policy):
 EPSILON = 0
 safety_tol = 0.1
 baseline_policy = lambda x: 0
+bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
 alg_dict = {
     "FWER pretest" : utils.wrapped_partial(
@@ -187,19 +188,11 @@ alg_dict = {
             random_split=False, 
             use_out_of_sample_covariance=False,
             sample_overlap=0,
+            thompson_sampling=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
             epsilon=EPSILON
-        ),
-    # "SPT (smart explore)" : utils.wrapped_partial(
-    #         bandit_learning.alg_propose_test_ts_smart_explore, 
-    #         random_split=False, 
-    #         use_out_of_sample_covariance=False,
-    #         sample_overlap=0,
-    #         baseline_policy=baseline_policy,
-    #         objective_temperature=1,
-    #         epsilon=EPSILON
-    #     ),
+        )
 }
 
 #%% Search for disagreement between policies
@@ -209,7 +202,7 @@ search_for_disagreement = False
 
 still_searching = True
 while still_searching:
-    bandit = BanditEnv.get_dosage_example(num_actions=20, param_count=10)
+    bandit = bandit_constructor()
     bandit.reset(num_timesteps=num_random_timesteps, num_instances=1)
     
     for _ in range(num_random_timesteps):
