@@ -456,14 +456,30 @@ def alg_propose_test_ts_fwer_fallback(
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), None, {}
     
-    a_safe_ts, _ = alg_propose_test_ts(
-        x, bandit, alpha, baseline_policy, random_split=True, use_out_of_sample_covariance=True,
-        objective_temperature=1, epsilon=0, safety_tol=safety_tol
+    a_safe_ts, _, _ = alg_propose_test_ts(
+        x,
+        bandit,
+        alpha, 
+        baseline_policy, 
+        random_split=True, 
+        use_out_of_sample_covariance=True,
+        objective_temperature=1, 
+        thompson_sampling=False,
+        can_propose_baseline_action=False,
+        sample_overlap=0,
+        epsilon=0, 
+        safety_tol=safety_tol
     )
     
     if a_safe_ts == a_baseline:
-        a_pretest, _ = alg_fwer_pretest_eps_greedy(
-            x, bandit, alpha, baseline_policy, num_actions_to_test=num_actions_to_test, epsilon=0, safety_tol=safety_tol
+        a_pretest, _ , _ = alg_fwer_pretest_eps_greedy(
+            x, 
+            bandit, 
+            alpha, 
+            baseline_policy, 
+            num_actions_to_test=num_actions_to_test, 
+            epsilon=0, 
+            safety_tol=safety_tol
         )
         return a_pretest, None, {}
     else:
