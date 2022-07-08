@@ -157,8 +157,10 @@ def plot_many(
 def plot_action_dist(results_list, num_to_plot, drop_first_action, figsize=(6,4), title=None):
     assert drop_first_action in [0,1]
     fig, axes = plt.subplots(
-        ncols=len(results_list), sharex=True, sharey=True, figsize=figsize
+        ncols=len(results_list), sharex=True, sharey=True, figsize=figsize,
+        squeeze=False
     )
+    axes = axes[0,:]
     axes[0].set_xlabel("Action")
     fig.suptitle(title)
     

@@ -11,7 +11,6 @@ alg_dict = {
     "FWER pretest TS" : utils.wrapped_partial(
             bandit_learning.alg_fwer_pretest_ts, 
             baseline_policy=baseline_policy,
-            num_actions_to_test=np.inf,
             epsilon=EPSILON
         ),
     "SPT" : utils.wrapped_partial(

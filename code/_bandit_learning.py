@@ -83,26 +83,18 @@ def test_safety(
 def test_many_actions(
         x, 
         a_baseline, 
-        num_actions_to_test, 
+        actions_to_test,
         alpha, 
         phi_XA, 
-        S, 
+        S,
         bandit, 
         correct_for_multiple_testing,
         safety_tol
     ):
     beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, S, bandit.get_W())
-    
-    if num_actions_to_test >= len(bandit.action_space):
-        actions_to_test = bandit.action_space
-        num_actions_to_test = len(bandit.action_space)
-    else:
-        actions_to_test = np.random.choice(
-            bandit.action_space, size=num_actions_to_test, replace=False
-        )
-        
+            
     if correct_for_multiple_testing: 
-        alpha = alpha/num_actions_to_test  
+        alpha = alpha/len(actions_to_test)
     
     safe_actions = []
     for a in actions_to_test:
@@ -210,7 +202,7 @@ def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
     return a, a_prob, {}
 
 def alg_fwer_pretest_eps_greedy(
-        x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon, safety_tol
+        x, bandit, alpha, baseline_policy, epsilon, safety_tol
     ):
     
     a_baseline = baseline_policy(x)
@@ -218,7 +210,7 @@ def alg_fwer_pretest_eps_greedy(
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
-        num_actions_to_test = num_actions_to_test,
+        actions_to_test = [a for a in bandit.action_space if a != a_baseline],
         alpha = alpha,
         phi_XA = bandit.get_phi_XA(),
         S = bandit.get_S(),
@@ -233,9 +225,9 @@ def alg_fwer_pretest_eps_greedy(
     else:
         beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R(), None)
         a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
+        info["beta_hat_R_bs"] = beta_hat_R
     
     a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
-    info["beta_hat_R_bs"] = beta_hat_R
     return a, a_prob, info
     
 def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
@@ -249,7 +241,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     return a, None, {}
 
 def alg_fwer_pretest_ts(
-        x, bandit, alpha, baseline_policy, num_actions_to_test, epsilon, safety_tol
+        x, bandit, alpha, baseline_policy, epsilon, safety_tol
     ):
     if random.random() < epsilon:
         return np.random.choice(bandit.action_space), None, {}
@@ -259,12 +251,12 @@ def alg_fwer_pretest_ts(
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
-        num_actions_to_test = num_actions_to_test,
+        actions_to_test = [a for a in bandit.action_space if a != a_baseline],
         alpha = alpha,
         phi_XA = bandit.get_phi_XA(),
         S = bandit.get_S(),
         bandit = bandit,
-        correct_for_multiple_testing = True,
+        correct_for_multiple_testing=True,
         safety_tol = safety_tol
     )
     
@@ -296,6 +288,9 @@ def alg_propose_test_ts(
         epsilon,
         safety_tol
     ):
+    if random.random() < epsilon:
+        return np.random.choice(bandit.action_space), None, {}
+    
     a_baseline = baseline_policy(x)
         
     X = bandit.get_X()
@@ -357,9 +352,8 @@ def alg_propose_test_ts(
         "safety_test" : safety_test
     }
 
-    a_selected = a_hat if test_result else a_baseline
-    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
-    return a, a_prob, info
+    a = a_hat if test_result else a_baseline
+    return a, None, info
     
 
 def alg_propose_test_ts_smart_explore(
@@ -486,7 +480,6 @@ def alg_propose_test_ts_fwer_fallback(
             bandit, 
             alpha, 
             baseline_policy, 
-            num_actions_to_test=num_actions_to_test, 
             epsilon=0, 
             safety_tol=safety_tol
         )
