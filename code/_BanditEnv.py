@@ -293,7 +293,7 @@ def get_power_checker(num_actions, effect_size):
     theta_safety[0] = 0
     theta_safety[1] = effect_size
     
-    action_space = range(num_actions)
+    action_space = list(range(num_actions))
     
     feature_vector = utils.wrapped_partial(
         standard_bandit_feature, num_actions = num_actions
