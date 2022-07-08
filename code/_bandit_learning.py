@@ -40,6 +40,8 @@ def get_best_action(x, param, bandit, available_actions=None):
 
 def estimate_safety_param_and_covariance(phi_XA, S, sqrt_weights):
     n, p = phi_XA.shape
+    assert n > 0, "Must have at least one data point."
+    
     phi_outer = [np.outer(phi, phi) for phi in phi_XA]
     stabilization_term = np.identity(p) * COV_STABILIZATION_AMT
     
@@ -187,8 +189,15 @@ def get_splits(random_seeds, overlap):
     # Given an array of random seeds and an overlap criterion, returns indices
     # for sample splitting
     assert 0 <= overlap <= 1, "overlap must be between 0 and 1"
-    indices_0 = np.nonzero(random_seeds <= 0.5 + overlap/2)
-    indices_1 = np.nonzero(random_seeds > 0.5 - overlap/2)
+    indices_0 = np.nonzero(random_seeds <= 0.5 + overlap/2)[0]
+    indices_1 = np.nonzero(random_seeds > 0.5 - overlap/2)[0]
+    
+    if len(indices_0) == 0:
+        indices_0 = np.array([0])
+        
+    if len(indices_1) == 0:
+        indices_1 = np.array([0])
+    
     return indices_0, indices_1
 
 #%% Algorithms
