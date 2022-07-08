@@ -221,7 +221,8 @@ def read_combine_and_process_json(filenames):
                     new_data = results_dict[run_label][setting]
                     if type(data) is str or setting == "action_space":
                         assert data == new_data, (
-                            f"Run setting mismatch during merge (setting={setting})."
+                            f"Run setting mismatch during merge (setting={setting}).\n"
+                            f"data={data}, new_data={new_data}"
                         )
                     elif type(data) is list:
                         data.extend(new_data)

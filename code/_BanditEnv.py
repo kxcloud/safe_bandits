@@ -346,6 +346,45 @@ def get_dosage_example(num_actions, param_count):
     )
     return bandit
 
+def get_uniform_armed_bandit(means, prob_negative):
+    """
+    A non-contextual, standard bandit where arm i has reward distribution
+    Uniform([l_i, u_i]) and safety is defined as reward being positive.
+    """
+    reward_param = np.array(means)
+    safety_param = 1 - np.array(prob_negative)
+    
+    assert np.all(reward_param >= 0), "Means must be nonnegative"
+    
+    lower_bounds = 2*(1-safety_param)*reward_param / (1-2*safety_param)
+    upper_bounds = 2*reward_param - lower_bounds
+    
+    action_space = list(range(len(means)))
+    
+    feature_vector = utils.wrapped_partial(
+        standard_bandit_feature, num_actions = len(action_space)
+    )
+    
+    bandit = BanditEnv(
+        x_dist=lambda : 0, 
+        action_space=list(range(len(means))),
+        feature_vector=feature_vector,
+        reward_param=reward_param,
+        safety_param=safety_param,
+        outcome_covariance=None,
+    )
+    
+    def custom_noise(a_batch):
+        rewards = np.random.uniform(lower_bounds[a_batch], upper_bounds[a_batch])
+        reward_noise = rewards - reward_param[a_batch]
+        safety = rewards >= 0
+        safety_noise = safety - safety_param[a_batch]
+        return reward_noise, safety_noise
+    
+    bandit._get_noise = custom_noise
+        
+    return bandit
+
 if __name__ == "__main__":
     num_instances = 1
     bandit = get_dosage_example(20, 10)
