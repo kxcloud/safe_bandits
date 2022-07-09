@@ -10,7 +10,7 @@ project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
 #%% CHANGE SETTINGS HERE
-import experiments.dosage_bandit as experiment_settings
+import experiments.power_checker as experiment_settings
 num_processes = 6
 data_file_prefix = experiment_settings.__name__
 
@@ -36,11 +36,11 @@ else:
 filenames = glob.glob(os.path.join(data_path,f"{data_file_prefix}*.json"))
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
-title = "Dosage bandit"
+title = "Power checker"
 
 visualize_results.plot_many(
     results_dict.values(), 
-    plot_confidence=True,
+    plot_confidence=False,
     plot_baseline_rewards=True, 
     plot_random_timesteps=False,
     include_mean_safety=False,
@@ -52,8 +52,8 @@ visualize_results.plot_many(
 
 visualize_results.plot_action_dist(
     results_dict.values(), 
-    num_to_plot=5, 
+    num_to_plot=10, 
     drop_first_action=False, 
-    figsize=(14,4), 
+    figsize=(13,6), 
     title=title
 )
