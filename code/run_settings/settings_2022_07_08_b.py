@@ -1,10 +1,24 @@
+from functools import partial
+
 import numpy as np
 
+import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning
 import _utils as utils
 
+# General settings
+num_runs = 500
+
+# Bandit settings
+bandit_constructor = partial(
+    BanditEnv.get_uniform_armed_bandit,
+    means=[1, 1.5, 2], 
+    prob_negative=[0, 0.15, 0.4]
+)
+
+# Alg settings
 EPSILON = 0.1
-safety_tol = 0.1
+safety_tol = 0.3
 baseline_policy = lambda x: 0
 
 alg_dict = {

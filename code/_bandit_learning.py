@@ -14,9 +14,6 @@ code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
-COV_STABILIZATION_AMT = 1e-8
-print(f"Covariance stabilization: {COV_STABILIZATION_AMT}")
-
 def bsample(list_of_data):
     n = len(list_of_data[0])
     bs_indices = np.random.choice(n, size=n)
@@ -43,18 +40,14 @@ def estimate_safety_param_and_covariance(phi_XA, S, sqrt_weights):
     assert n > 0, "Must have at least one data point."
     
     phi_outer = [np.outer(phi, phi) for phi in phi_XA]
-    stabilization_term = np.identity(p) * COV_STABILIZATION_AMT
+    cov_H = np.einsum("i,ijk->jk", sqrt_weights, phi_outer)/n
     
-    cov_H = np.einsum("i,ijk->jk", sqrt_weights, phi_outer)/n + stabilization_term
-
     beta_hat_S = utils.linear_regression(phi_XA, S, sqrt_weights)
-    
     residuals_sq = (sqrt_weights*(phi_XA @ beta_hat_S - S))**2
-    
     cov_G = np.mean(
         [phi_sq * resid_sq for (phi_sq, resid_sq) in zip(phi_outer, residuals_sq)],
         axis=0
-    ) + stabilization_term
+    )
     
     sqrt_G = np.linalg.cholesky(cov_G)
     sqrt_cov = np.linalg.solve(cov_H, sqrt_G)
@@ -85,14 +78,12 @@ def test_many_actions(
         a_baseline, 
         actions_to_test,
         alpha, 
-        phi_XA, 
-        S,
+        beta_hat_S, 
+        sqrt_cov,
         bandit, 
         correct_for_multiple_testing,
         safety_tol
     ):
-    beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, S, bandit.get_W())
-            
     if correct_for_multiple_testing: 
         alpha = alpha/len(actions_to_test)
     
@@ -106,7 +97,7 @@ def test_many_actions(
             sqrt_cov = sqrt_cov,
             alpha = alpha,
             phi = bandit.feature_vectorized,
-            n = len(phi_XA),
+            n = (bandit.t+1) * bandit.num_instances,
             safety_tol = safety_tol
         )
         if test_result:
@@ -206,14 +197,20 @@ def alg_fwer_pretest_eps_greedy(
     ):
     
     a_baseline = baseline_policy(x)
+    phi_XA = bandit.get_phi_XA()
+    
+    try:
+        beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
+    except np.linalg.linalg.LinAlgError:
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : []}
     
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
         actions_to_test = [a for a in bandit.action_space if a != a_baseline],
         alpha = alpha,
-        phi_XA = bandit.get_phi_XA(),
-        S = bandit.get_S(),
+        beta_hat_S = beta_hat_S,
+        sqrt_cov = sqrt_cov,
         bandit = bandit,
         correct_for_multiple_testing=True,
         safety_tol = safety_tol
@@ -223,7 +220,7 @@ def alg_fwer_pretest_eps_greedy(
     if len(safe_actions) == 0:
         a_selected = a_baseline
     else:
-        beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R(), None)
+        beta_hat_R = utils.linear_regression(phi_XA, bandit.get_R(), None)
         a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
         info["beta_hat_R_bs"] = beta_hat_R
     
@@ -247,14 +244,20 @@ def alg_fwer_pretest_ts(
         return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
+    phi_XA = bandit.get_phi_XA()
+    
+    try:
+        beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
+    except np.linalg.linalg.LinAlgError:
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : []}
     
     safe_actions = test_many_actions(
         x = x,
         a_baseline = a_baseline,
         actions_to_test = [a for a in bandit.action_space if a != a_baseline],
         alpha = alpha,
-        phi_XA = bandit.get_phi_XA(),
-        S = bandit.get_S(),
+        beta_hat_S = beta_hat_S,
+        sqrt_cov = sqrt_cov,
         bandit = bandit,
         correct_for_multiple_testing=True,
         safety_tol = safety_tol
@@ -310,13 +313,19 @@ def alg_propose_test_ts(
     phi_XA_2, R_2, S_2, W_2 = phi_XA[indices_1], R[indices_1], S[indices_1], W[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
+    try:
+        beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
+    except np.linalg.linalg.LinAlgError:
+        return np.random.choice(bandit.action_space), None, {}
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
     else:
-        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
-        sqrt_cov = sqrt_cov_1
+        try:
+            _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
+            sqrt_cov = sqrt_cov_1
+        except np.linalg.linalg.LinAlgError:
+            return np.random.choice(bandit.action_space), None, {}
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
@@ -397,13 +406,19 @@ def alg_propose_test_ts_smart_explore(
     phi_XA_2, R_2, S_2, W_2 = phi_XA[indices_1], R[indices_1], S[indices_1], W[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
-    beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
+    try:
+        beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
+    except np.linalg.linalg.LinAlgError:
+        return np.random.choice(bandit.action_space), None, {}
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
     else:
-        _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
-        sqrt_cov = sqrt_cov_1
+        try:
+            _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
+            sqrt_cov = sqrt_cov_1
+        except np.linalg.linalg.LinAlgError:
+            return np.random.choice(bandit.action_space), None, {}
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 

@@ -180,7 +180,6 @@ alg_dict = {
     "FWER pretest" : utils.wrapped_partial(
             bandit_learning.alg_fwer_pretest_eps_greedy, 
             baseline_policy=baseline_policy,
-            num_actions_to_test=np.inf,
             epsilon=EPSILON
         ),
     "SPT" : utils.wrapped_partial(
@@ -189,6 +188,7 @@ alg_dict = {
             use_out_of_sample_covariance=False,
             sample_overlap=0,
             thompson_sampling=False,
+            can_propose_baseline_action=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
             epsilon=EPSILON
@@ -196,7 +196,7 @@ alg_dict = {
 }
 
 #%% Search for disagreement between policies
-num_random_timesteps = 100
+num_random_timesteps = 5
 
 search_for_disagreement = False
 
