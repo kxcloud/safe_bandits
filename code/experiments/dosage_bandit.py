@@ -8,18 +8,13 @@ import _utils as utils
 
 # General settings
 num_runs = 500
-num_processes = 10
 
 # Bandit settings
-bandit_constructor = partial(
-    BanditEnv.get_uniform_armed_bandit,
-    means=[1, 1.5, 2], 
-    prob_negative=[0, 0.15, 0.4]
-)
+bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
 # Alg settings
 EPSILON = 0.1
-safety_tol = 0.3
+safety_tol = 0.1
 baseline_policy = lambda x: 0
 
 alg_dict = {

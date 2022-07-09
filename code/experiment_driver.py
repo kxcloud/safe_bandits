@@ -1,38 +1,42 @@
-import sys
+import glob
 import os 
+import subprocess
 
-import numpy as np
-
-import _BanditEnv as BanditEnv
-import _bandit_learning as bandit_learning
 import _visualize_results as visualize_results
-import _utils as utils
 
-import experiment_2022_07_08.py as experiment_settings
-
+CONDA_ENVIRONMENT_NAME = "base"
 code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
+#%% CHANGE SETTINGS HERE
+import experiments.dosage_bandit as experiment_settings
+num_processes = 6
+data_file_prefix = experiment_settings.__name__
 
-#%% Run experiment workers
-
-for process_idx in range(experiment_settings.num_proceses):
-    os.subprocesses()
-
+#%% Run experiments
+if num_processes is None:
+    import experiment_worker
+    data_filename = os.path.join(data_path, f"{data_file_prefix}.json")
+    argv = [None, experiment_settings.__name__, data_filename]
+    experiment_worker.main(argv)
+else:
+    worker_filename = os.path.join(code_path, "experiment_worker.py")
+    activate = f"conda activate {CONDA_ENVIRONMENT_NAME}"
+    subprocesses = []
+    for process_idx in range(num_processes):
+        data_filename = os.path.join(data_path,f"{data_file_prefix}_{process_idx}.json")
+        run = " ".join(["python", worker_filename, experiment_settings.__name__, data_filename])
+        command = " & ".join([activate, run])
+        subp = subprocess.Popen(command, shell=True)
+        subprocesses.append(subp)
+    exit_codes = [p.wait() for p in subprocesses] 
 
 #%% Plot
-
-filenames = [
-    "2022_07_08_uniform_armed_2_A.json",
-    "2022_07_08_uniform_armed_2_B.json",
-    "2022_07_08_uniform_armed_2_C.json",
-]
+filenames = glob.glob(os.path.join(data_path,f"{data_file_prefix}*.json"))
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
-colors = None #["C1", "C3", "C2"]
-
-title = "Uniform armed bandit"
+title = "Dosage bandit"
 
 visualize_results.plot_many(
     results_dict.values(), 
@@ -43,7 +47,7 @@ visualize_results.plot_many(
     moving_avg_window=5, 
     title=title,
     figsize=(13,5),
-    colors=colors
+    colors=None
 )
 
 visualize_results.plot_action_dist(
@@ -53,4 +57,3 @@ visualize_results.plot_action_dist(
     figsize=(14,4), 
     title=title
 )
-
