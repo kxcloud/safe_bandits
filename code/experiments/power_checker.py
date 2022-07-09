@@ -6,16 +6,24 @@ import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning
 import _utils as utils
 
-# General settings
-num_runs = 150
+bandit_constructor = partial(
+    BanditEnv.get_power_checker, num_actions=20, effect_size=0.5
+)
 
-# Bandit settings
-bandit_constructor = partial(BanditEnv.get_power_checker, num_actions=20, effect_size=0.5)
-
-# Alg settings
 EPSILON = 0.1
 safety_tol = 0.1
 baseline_policy = lambda x: 0
+
+evaluator = partial(
+    bandit_learning.evaluate,
+    bandit_constructor=bandit_constructor,
+    baseline_policy=baseline_policy,
+    num_random_timesteps=5,
+    num_alg_timesteps=395,
+    num_instances=1,
+    alpha=0.1,
+    safety_tol=safety_tol
+)
 
 alg_dict = {
     "FWER pretest TS" : utils.wrapped_partial(

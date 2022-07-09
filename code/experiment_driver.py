@@ -11,14 +11,15 @@ data_path = os.path.join(project_path,"data")
 
 #%% CHANGE SETTINGS HERE
 import experiments.power_checker as experiment_settings
-num_processes = 6
+num_processes = None
+num_runs = 2
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
 if num_processes is None:
     import experiment_worker
     data_filename = os.path.join(data_path, f"{data_file_prefix}.json")
-    argv = [None, experiment_settings.__name__, data_filename]
+    argv = [None, experiment_settings.__name__, data_filename, num_runs]
     experiment_worker.main(argv)
 else:
     worker_filename = os.path.join(code_path, "experiment_worker.py")
@@ -26,7 +27,7 @@ else:
     subprocesses = []
     for process_idx in range(num_processes):
         data_filename = os.path.join(data_path,f"{data_file_prefix}_{process_idx}.json")
-        run = " ".join(["python", worker_filename, experiment_settings.__name__, data_filename])
+        run = " ".join(["python", worker_filename, experiment_settings.__name__, data_filename, num_runs])
         command = " & ".join([activate, run])
         subp = subprocess.Popen(command, shell=True)
         subprocesses.append(subp)
@@ -40,7 +41,7 @@ title = "Power checker"
 
 visualize_results.plot_many(
     results_dict.values(), 
-    plot_confidence=False,
+    plot_confidence=True,
     plot_baseline_rewards=True, 
     plot_random_timesteps=False,
     include_mean_safety=False,
