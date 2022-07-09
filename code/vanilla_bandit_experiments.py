@@ -18,7 +18,7 @@ bandit_constructor = partial(
     prob_negative=[0, 0.15, 0.4]
 )
 
-num_runs = 5
+num_runs = 500
 
 #%% Run
 results_dict = {}
@@ -29,7 +29,7 @@ for alg_label, learning_algorithm in run_settings.alg_dict.items():
         learning_algorithm,
         baseline_policy = run_settings.baseline_policy,
         num_random_timesteps=5,
-        num_alg_timesteps=100,
+        num_alg_timesteps=395,
         num_runs=num_runs,
         num_instances=1,
         alpha=0.1,
@@ -46,8 +46,8 @@ bandit_learning.save_to_json(results_dict, "2022_07_08_uniform_armed_2_C.json")
 # %% Plot
 
 filenames = [
-    # "2022_07_08_uniform_armed_2_A.json",
-    # "2022_07_08_uniform_armed_2_B.json",
+    "2022_07_08_uniform_armed_2_A.json",
+    "2022_07_08_uniform_armed_2_B.json",
     "2022_07_08_uniform_armed_2_C.json",
 ]
 results_dict = visualize_results.read_combine_and_process_json(filenames)

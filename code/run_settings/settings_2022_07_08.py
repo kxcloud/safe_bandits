@@ -4,7 +4,7 @@ import _bandit_learning as bandit_learning
 import _utils as utils
 
 EPSILON = 0.1
-safety_tol = 0.1
+safety_tol = 0.3
 baseline_policy = lambda x: 0
 
 alg_dict = {
