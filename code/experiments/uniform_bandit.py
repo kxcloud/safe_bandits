@@ -12,7 +12,7 @@ bandit_constructor = partial(
     prob_negative=[0, 0.15, 0.4]
 )
 
-EPSILON = 0.1
+EPSILON = lambda t: 0.1 / (t+1)**0.1
 safety_tol = 0.3
 baseline_policy = lambda x: 0
 

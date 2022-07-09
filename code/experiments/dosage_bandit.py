@@ -8,7 +8,7 @@ import _utils as utils
 
 bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
-EPSILON = 0.1
+EPSILON = lambda t: 0.1 / (t+1)**0.1
 safety_tol = 0.1
 baseline_policy = lambda x: 0
 

@@ -189,7 +189,7 @@ def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
     beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
     a_max = get_best_action(x, beta_hat_R, bandit)
     
-    a, a_prob = get_e_greedy_action_and_probs(a_max, epsilon, bandit.action_space)
+    a, a_prob = get_e_greedy_action_and_probs(a_max, epsilon(bandit.t), bandit.action_space)
     return a, a_prob, {}
 
 def alg_fwer_pretest_eps_greedy(
@@ -224,11 +224,11 @@ def alg_fwer_pretest_eps_greedy(
         a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
         info["beta_hat_R_bs"] = beta_hat_R
     
-    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon, bandit.action_space)
+    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon(bandit.t), bandit.action_space)
     return a, a_prob, info
     
 def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
-    if random.random() < epsilon:
+    if random.random() < epsilon(bandit.t):
         return np.random.choice(bandit.action_space), None, {}
     
     phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
@@ -240,7 +240,7 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
 def alg_fwer_pretest_ts(
         x, bandit, alpha, baseline_policy, epsilon, safety_tol
     ):
-    if random.random() < epsilon:
+    if random.random() < epsilon(bandit.t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
@@ -291,7 +291,7 @@ def alg_propose_test_ts(
         epsilon,
         safety_tol
     ):
-    if random.random() < epsilon:
+    if random.random() < epsilon(bandit.t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
@@ -456,9 +456,9 @@ def alg_propose_test_ts_smart_explore(
     
     a_selected = a_hat if test_result else a_baseline
     
-    a_probs = np.full(len(bandit.action_space), fill_value=epsilon/len(bandit.action_space)/2)
-    a_probs[bandit.action_idx[a_hat]] += epsilon/2
-    a_probs[bandit.action_idx[a_selected]] += 1-epsilon
+    a_probs = np.full(len(bandit.action_space), fill_value=epsilon(bandit.t)/len(bandit.action_space)/2)
+    a_probs[bandit.action_idx[a_hat]] += epsilon(bandit.t)/2
+    a_probs[bandit.action_idx[a_selected]] += 1-epsilon(bandit.t)
     a = np.random.choice(bandit.action_space, p=a_probs)
     a_prob = a_probs[bandit.action_idx[a]]
     return a, a_prob, info
@@ -471,7 +471,7 @@ def alg_propose_test_ts_fwer_fallback(
 
     alpha = alpha/2 if correct_alpha else alpha
 
-    if random.random() < epsilon:
+    if random.random() < epsilon(bandit.t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_safe_ts, _, _ = alg_propose_test_ts(
@@ -485,7 +485,7 @@ def alg_propose_test_ts_fwer_fallback(
         thompson_sampling=False,
         can_propose_baseline_action=False,
         sample_overlap=0,
-        epsilon=0, 
+        epsilon=lambda t: 0, 
         safety_tol=safety_tol
     )
     
@@ -495,7 +495,7 @@ def alg_propose_test_ts_fwer_fallback(
             bandit, 
             alpha, 
             baseline_policy, 
-            epsilon=0, 
+            epsilon=lambda t: 0, 
             safety_tol=safety_tol
         )
         return a_pretest, None, {}
@@ -638,32 +638,3 @@ def save_to_json(results_dict, filename):
         
     with open(os.path.join(data_path, filename), 'w') as f:
         json.dump(results, f)
-            
-#%% Evaluation
-baseline_policy = lambda x : 0
-
-alg_dict = {
-    "Unsafe e-greedy" : utils.wrapped_partial(alg_eps_greedy, epsilon=0.1),
-    "Unsafe TS" : utils.wrapped_partial(alg_unsafe_ts, epsilon=0.1),
-    "FWER pretest (all): e-greedy" : utils.wrapped_partial(
-            alg_fwer_pretest_eps_greedy, baseline_policy=baseline_policy, num_actions_to_test=np.inf, epsilon=0.1
-        ),
-    "FWER pretest (all): TS" :  utils.wrapped_partial(
-            alg_fwer_pretest_ts, baseline_policy=baseline_policy, num_actions_to_test=np.inf, epsilon=0.1
-        ),
-    "Propose-test TS" : utils.wrapped_partial(
-            alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=False, epsilon=0.1
-        ),
-    "Propose-test TS (OOS covariance)" : utils.wrapped_partial(
-            alg_propose_test_ts, random_split=False, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=True, epsilon=0.1
-        ),
-    "Propose-test TS (random split)" : utils.wrapped_partial(
-            alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=False, epsilon=0.1
-        ),
-    "Propose-test TS (random) (OOS)" : utils.wrapped_partial(
-            alg_propose_test_ts, random_split=True, baseline_policy=baseline_policy, objective_temperature=1, use_out_of_sample_covariance=True, epsilon=0.1
-        ),
-    "Propose-test TS (safe FWER fallback [all])" : utils.wrapped_partial(
-            alg_propose_test_ts_fwer_fallback, correct_alpha=True, num_actions_to_test=np.inf, baseline_policy=baseline_policy, epsilon=0.1
-        ),  
-}
