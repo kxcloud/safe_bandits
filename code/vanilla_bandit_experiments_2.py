@@ -9,14 +9,7 @@ import _utils as utils
 
 import run_settings.settings_2022_07_08 as run_settings
 
-# bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
-# bandit_constructor = partial(BanditEnv.get_power_checker, num_actions=20, effect_size=0.5)
-
-bandit_constructor = partial(
-    BanditEnv.get_uniform_armed_bandit,
-    means=[1, 1.5, 2], 
-    prob_negative=[0, 0.15, 0.4]
-)
+bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10)
 
 num_runs = 5
 
@@ -29,7 +22,7 @@ for alg_label, learning_algorithm in run_settings.alg_dict.items():
         learning_algorithm,
         baseline_policy = run_settings.baseline_policy,
         num_random_timesteps=5,
-        num_alg_timesteps=100,
+        num_alg_timesteps=395,
         num_runs=num_runs,
         num_instances=1,
         alpha=0.1,
@@ -41,28 +34,28 @@ total_duration = sum([results["duration"] for results in results_dict.values()])
 print(f"Total duration: {total_duration:0.02f} minutes.")
 utils.print_run_counts_by_time(num_runs, total_duration)
 
-bandit_learning.save_to_json(results_dict, "2022_07_08_uniform_armed_2_C.json")
+bandit_learning.save_to_json(results_dict, "2022_07_08_dosage_long_C.json")
 
-# %% Plot
+#%% Plot
 
 filenames = [
-    # "2022_07_08_uniform_armed_2_A.json",
-    # "2022_07_08_uniform_armed_2_B.json",
-    "2022_07_08_uniform_armed_2_C.json",
+    # "2022_07_08_dosage_long_A.json",
+    # "2022_07_08_dosage_long_B.json",
+    "2022_07_08_dosage_long_C.json",
 ]
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
 colors = None #["C1", "C3", "C2"]
 
-title = "Uniform armed bandit"
+title = "Dosage bandit"
 
 visualize_results.plot_many(
     results_dict.values(), 
-    plot_confidence=True,
-    plot_baseline_rewards=True, 
+    plot_confidence=False,
+    plot_baseline_rewards=False, 
     plot_random_timesteps=False,
     include_mean_safety=False,
-    moving_avg_window=5, 
+    moving_avg_window=20, 
     title=title,
     figsize=(13,5),
     colors=colors
@@ -70,9 +63,9 @@ visualize_results.plot_many(
 
 visualize_results.plot_action_dist(
     results_dict.values(), 
-    num_to_plot=5, 
+    num_to_plot=20, 
     drop_first_action=False, 
-    figsize=(14,4), 
+    figsize=(14,10), 
     title=title
 )
 
