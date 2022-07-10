@@ -7,7 +7,7 @@ import _utils as utils
 def main(argv):
     settings_filename = argv[1]
     data_filename = argv[2]
-    num_runs = argv[3]
+    num_runs = int(argv[3])
     experiment_settings = importlib.import_module(settings_filename)
     
     results_dict = {}

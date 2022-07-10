@@ -37,7 +37,6 @@ alg_dict = {
             use_out_of_sample_covariance=False,
             sample_overlap=0,
             thompson_sampling=False,
-            can_propose_baseline_action=False,
             baseline_policy=baseline_policy,
             objective_temperature=1,
             epsilon=EPSILON

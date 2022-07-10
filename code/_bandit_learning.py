@@ -202,9 +202,9 @@ def alg_fwer_pretest_eps_greedy(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
-        return np.random.choice(bandit.action_space), None, {"safe_actions" : []}
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
     
-    safe_actions = test_many_actions(
+    safe_actions = [a_baseline] + test_many_actions(
         x = x,
         a_baseline = a_baseline,
         actions_to_test = [a for a in bandit.action_space if a != a_baseline],
@@ -217,7 +217,7 @@ def alg_fwer_pretest_eps_greedy(
     )
     info = {"safe_actions" : safe_actions}
          
-    if len(safe_actions) == 0:
+    if len(safe_actions) == 1:
         a_selected = a_baseline
     else:
         beta_hat_R = utils.linear_regression(phi_XA, bandit.get_R(), None)
@@ -249,9 +249,9 @@ def alg_fwer_pretest_ts(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
-        return np.random.choice(bandit.action_space), None, {"safe_actions" : []}
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
     
-    safe_actions = test_many_actions(
+    safe_actions = [a_baseline] + test_many_actions(
         x = x,
         a_baseline = a_baseline,
         actions_to_test = [a for a in bandit.action_space if a != a_baseline],
@@ -264,8 +264,6 @@ def alg_fwer_pretest_ts(
     )
     
     info = {"safe_actions" : safe_actions}
-    if len(safe_actions) == 0:
-        return a_baseline, None, info
     
     if len(safe_actions) == 1:
         return safe_actions[0], None, info
@@ -287,7 +285,6 @@ def alg_propose_test_ts(
         use_out_of_sample_covariance,
         sample_overlap,
         thompson_sampling,
-        can_propose_baseline_action,
         epsilon,
         safety_tol
     ):
@@ -331,13 +328,8 @@ def alg_propose_test_ts(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
         objective_temperature, safety_tol, thompson_sampling
     )
-    
-    if can_propose_baseline_action:
-        action_space = bandit.action_space
-    else:
-        action_space = [a for a in bandit.action_space if a != a_baseline]
-    
-    a_hat = maximize(expected_improvement, action_space)
+        
+    a_hat = maximize(expected_improvement, bandit.action_space)
     
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(
@@ -375,7 +367,6 @@ def alg_propose_test_ts_smart_explore(
         use_out_of_sample_covariance,
         sample_overlap,
         thompson_sampling,
-        can_propose_baseline_action,
         epsilon,
         safety_tol
     ):
@@ -425,12 +416,7 @@ def alg_propose_test_ts_smart_explore(
         objective_temperature, safety_tol, thompson_sampling
     )
     
-    if can_propose_baseline_action:
-        action_space = bandit.action_space
-    else:
-        action_space = [a for a in bandit.action_space if a != a_baseline]
-    
-    a_hat = maximize(expected_improvement, action_space)
+    a_hat = maximize(expected_improvement, bandit.action_space)
         
     # TEST SELECTION ON SAMPLE 2      
     safety_test = partial(
@@ -479,11 +465,10 @@ def alg_propose_test_ts_fwer_fallback(
         bandit,
         alpha, 
         baseline_policy, 
-        random_split=True, 
-        use_out_of_sample_covariance=True,
+        random_split=True,
+        use_out_of_sample_covariance=False,
         objective_temperature=1, 
         thompson_sampling=False,
-        can_propose_baseline_action=False,
         sample_overlap=0,
         epsilon=lambda t: 0, 
         safety_tol=safety_tol

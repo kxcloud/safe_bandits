@@ -11,8 +11,8 @@ data_path = os.path.join(project_path,"data")
 
 #%% CHANGE SETTINGS HERE
 import experiments.power_checker as experiment_settings
-num_processes = None
-num_runs = 2
+num_processes = 4
+num_runs = 300
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
@@ -27,7 +27,7 @@ else:
     subprocesses = []
     for process_idx in range(num_processes):
         data_filename = os.path.join(data_path,f"{data_file_prefix}_{process_idx}.json")
-        run = " ".join(["python", worker_filename, experiment_settings.__name__, data_filename, num_runs])
+        run = " ".join(["python", worker_filename, experiment_settings.__name__, data_filename, str(num_runs)])
         command = " & ".join([activate, run])
         subp = subprocess.Popen(command, shell=True)
         subprocesses.append(subp)
@@ -37,12 +37,12 @@ else:
 filenames = glob.glob(os.path.join(data_path,f"{data_file_prefix}*.json"))
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
-title = "Power checker"
+title = "All safe bandit"
 
 visualize_results.plot_many(
     results_dict.values(), 
     plot_confidence=True,
-    plot_baseline_rewards=True, 
+    plot_baseline_rewards=False, 
     plot_random_timesteps=False,
     include_mean_safety=False,
     moving_avg_window=5, 
