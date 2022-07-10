@@ -12,15 +12,15 @@ data_path = os.path.join(project_path,"data")
 
 #%% CHANGE SETTINGS HERE
 import experiments.uniform_bandit as experiment_settings
-num_processes = 3 
-num_runs = 30
+num_processes = None
+num_runs = 5
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
 if num_processes is None:
     import experiment_worker
     data_filename = os.path.join(data_path, f"{data_file_prefix}.json")
-    argv = [None, experiment_settings.__name__, data_filename, num_runs, os.path.join(data_path,f"{data_file_prefix}_TMP"), 1]
+    argv = [None, experiment_settings.__name__, data_filename, num_runs, None, 0]
     experiment_worker.main(argv)
 else:
     progress_dir = os.path.join(data_path,f"{data_file_prefix}_TMP")
