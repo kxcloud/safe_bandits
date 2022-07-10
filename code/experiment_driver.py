@@ -3,7 +3,7 @@ import os
 import subprocess
 
 import _visualize_results as visualize_results
-import ProgressBar 
+import ProgressTracker
 
 CONDA_ENVIRONMENT_NAME = "base"
 code_path = os.path.dirname(os.path.realpath(__file__))
@@ -13,7 +13,7 @@ data_path = os.path.join(project_path,"data")
 #%% CHANGE SETTINGS HERE
 import experiments.uniform_bandit as experiment_settings
 num_processes = 3 
-num_runs = 10
+num_runs = 30
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
@@ -24,7 +24,7 @@ if num_processes is None:
     experiment_worker.main(argv)
 else:
     progress_dir = os.path.join(data_path,f"{data_file_prefix}_TMP")
-    pbar = ProgressBar.ProgressBar(
+    pbar = ProgressTracker.ProgressTracker(
         total_steps = num_processes*len(experiment_settings.alg_dict),
         progress_dir = progress_dir,
         title = data_file_prefix

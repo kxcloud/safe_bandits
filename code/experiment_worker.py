@@ -13,8 +13,13 @@ def main(argv):
     process_idx = int(argv[5])
     experiment_settings = importlib.import_module(settings_filename)
     
+    # Sloppy hack to get better runtime estimates across multiple processes
+    alg_dict_items = experiment_settings.alg_dict.items()
+    if progress_dir is not None and process_idx % 2 == 0:
+        alg_dict_items = reversed(alg_dict_items)
+    
     results_dict = {}
-    for alg_label, learning_algorithm in experiment_settings.alg_dict.items():
+    for alg_label, learning_algorithm in alg_dict_items:
         results = experiment_settings.evaluator(
             alg_label=alg_label,
             learning_algorithm=learning_algorithm,
