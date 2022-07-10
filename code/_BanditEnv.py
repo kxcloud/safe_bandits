@@ -250,7 +250,7 @@ def get_random_polynomial_bandit(
     
     bandit = BanditEnv(
         x_dist=np.random.uniform, 
-        action_space=range(num_actions),
+        action_space=list(range(num_actions)),
         feature_vector=utils.wrapped_partial(
             orthogonal_polynomial_feature, p=p, num_actions=num_actions
         ),
@@ -260,13 +260,13 @@ def get_random_polynomial_bandit(
     )
     return bandit
     
-def get_standard_bandit(safety_means, outcome_std_dev):
+def get_standard_bandit(safety_means, outcome_covariance, reward_means=None):
     num_actions = len(safety_means)
-    
-    theta_reward = np.random.normal(size=num_actions)
+        
+    theta_reward = np.random.normal(size=len(safety_means)) if reward_means is None else reward_means
     theta_safety = safety_means
     
-    action_space = range(num_actions)
+    action_space = list(range(num_actions))
     
     feature_vector = utils.wrapped_partial(
         standard_bandit_feature, num_actions = num_actions
@@ -278,7 +278,7 @@ def get_standard_bandit(safety_means, outcome_std_dev):
         feature_vector=feature_vector,
         reward_param=theta_reward,
         safety_param=theta_safety,
-        outcome_covariance=[[outcome_std_dev**2,0],[0,outcome_std_dev**2]]
+        outcome_covariance=outcome_covariance
     )
     return bandit
 
