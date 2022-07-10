@@ -1,3 +1,4 @@
+import os
 import sys
 import importlib
 
@@ -8,6 +9,8 @@ def main(argv):
     settings_filename = argv[1]
     data_filename = argv[2]
     num_runs = int(argv[3])
+    progress_dir = argv[4]
+    process_idx = int(argv[5])
     experiment_settings = importlib.import_module(settings_filename)
     
     results_dict = {}
@@ -18,6 +21,10 @@ def main(argv):
             num_runs=num_runs,
         )
         results_dict[alg_label] = results
+        if progress_dir is not None:
+            tmp_filename = os.path.join(progress_dir,f"{alg_label}_{process_idx}")
+            with open(tmp_filename, "w") as f:
+                f.write("")
     
     total_duration = sum([results["duration"] for results in results_dict.values()])
     print(f"Total duration: {total_duration:0.02f} minutes.")
