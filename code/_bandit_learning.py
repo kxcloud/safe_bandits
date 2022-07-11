@@ -202,6 +202,7 @@ def alg_fwer_pretest_eps_greedy(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
+        print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
     
     safe_actions = [a_baseline] + test_many_actions(
@@ -249,6 +250,7 @@ def alg_fwer_pretest_ts(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
+        print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
     
     safe_actions = [a_baseline] + test_many_actions(
@@ -293,11 +295,11 @@ def alg_propose_test_ts(
     
     a_baseline = baseline_policy(x)
         
-    X = bandit.get_X()
-    phi_XA = bandit.get_phi_XA()
-    R = bandit.get_R()
-    S = bandit.get_S()
-    W = bandit.get_W()
+    X = bandit.get_X().copy()
+    phi_XA = bandit.get_phi_XA().copy()
+    R = bandit.get_R().copy()
+    S = bandit.get_S().copy()
+    W = bandit.get_W().copy()
     
     if random_split:
         n = len(X)
@@ -313,6 +315,7 @@ def alg_propose_test_ts(
     try:
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
+        print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {}
     
     if use_out_of_sample_covariance:
@@ -322,6 +325,7 @@ def alg_propose_test_ts(
             _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
+            print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
             return np.random.choice(bandit.action_space), None, {}
     
     expected_improvement, split = get_expected_improvement_objective(
@@ -380,11 +384,11 @@ def alg_propose_test_ts_smart_explore(
     
     a_baseline = baseline_policy(x)
     
-    X = bandit.get_X()
-    phi_XA = bandit.get_phi_XA()
-    R = bandit.get_R()
-    S = bandit.get_S()
-    W = bandit.get_W()
+    X = bandit.get_X().copy()
+    phi_XA = bandit.get_phi_XA().copy()
+    R = bandit.get_R().copy()
+    S = bandit.get_S().copy()
+    W = bandit.get_W().copy()
     
     if random_split:
         n = len(X)
@@ -400,6 +404,7 @@ def alg_propose_test_ts_smart_explore(
     try:
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
+        print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {}
     
     if use_out_of_sample_covariance:
@@ -409,6 +414,7 @@ def alg_propose_test_ts_smart_explore(
             _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
+            print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
             return np.random.choice(bandit.action_space), None, {}
     
     expected_improvement, split = get_expected_improvement_objective(
