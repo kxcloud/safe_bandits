@@ -161,8 +161,8 @@ class BanditEnv:
             ax = axes[idx]
             X_grid = np.linspace(0, 1, 70)
             for a_idx, a in enumerate(self.action_space):
-                phi_a = self.feature_vector(X_grid, a)             
-                ax.plot(X_grid, phi_a @ param, label=f"action={a}")
+                phi_a = self.feature_vectorized(X_grid, a)             
+                ax.plot(X_grid, phi_a @ param, label=f"action={a}", lw=2)
             ax.set_title(label)
             ax.set_xlabel("Context (x)")
         
@@ -256,7 +256,7 @@ def get_random_polynomial_bandit(
         ),
         reward_param=theta_reward,
         safety_param=theta_safety,
-        outcome_covariance=[[2,0],[0,2]]
+        outcome_covariance=[[0.1,0],[0,0.1]]
     )
     return bandit
     
