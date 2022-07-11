@@ -7,7 +7,7 @@ import _bandit_learning as bandit_learning
 import _utils as utils
 
 bandit_constructor = partial(
-    BanditEnv.get_random_polynomial_bandit, num_actions=4, p=3
+    BanditEnv.get_random_polynomial_bandit, num_actions=8, p=2
 )
 
 EPSILON = lambda t: 0.1 / (t+1)**0.1
@@ -19,7 +19,7 @@ evaluator = partial(
     bandit_constructor=bandit_constructor,
     baseline_policy=baseline_policy,
     num_random_timesteps=20,
-    num_alg_timesteps=380,
+    num_alg_timesteps=300,
     num_instances=1,
     alpha=0.1,
     safety_tol=safety_tol

@@ -172,8 +172,13 @@ def plot_action_dist(results_list, num_to_plot, drop_first_action, figsize=(6,4)
     
     for ax, action_freq, result in zip(axes, action_freqs, results_list):
         ax.set_yticks([])
+        
         ax.set_title(result["alg_label"])
         action_space = result["action_space"][drop_first_action:]
+        
+        if len(ax.get_yticks()) > len(action_space):
+            ax.set_yticks(action_space)
+        
         annotation_x = (action_space[0] + action_space[-1])*0.8
         
         num_timesteps = action_freq.shape[0]

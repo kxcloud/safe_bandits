@@ -7,7 +7,7 @@ import _bandit_learning as bandit_learning
 import _utils as utils
 
 bandit_constructor = partial(
-    BanditEnv.get_power_checker, num_actions=20, effect_size=0.5
+    BanditEnv.get_power_checker, num_actions=5, effect_size=0.5
 )
 
 EPSILON = lambda t: 0.1 / (t+1)**0.1
