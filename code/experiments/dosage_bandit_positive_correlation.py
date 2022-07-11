@@ -6,7 +6,7 @@ import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning
 import _utils as utils
 
-bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10, outcome_correlation=0)
+bandit_constructor = partial(BanditEnv.get_dosage_example, num_actions=20, param_count=10, outcome_correlation=0.5)
 
 EPSILON = lambda t: 0.1 / (t+1)**0.1
 safety_tol = 0.1

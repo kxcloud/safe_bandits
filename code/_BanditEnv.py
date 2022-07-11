@@ -310,7 +310,7 @@ def get_power_checker(num_actions, effect_size):
     return bandit
 
 
-def get_dosage_example(num_actions, param_count):
+def get_dosage_example(num_actions, param_count, outcome_correlation):
     """
     A non-contextual linear bandit where reward is increasing and safety is 
     decreasing in action ("dosage") level, and information is pooled across 
@@ -336,13 +336,16 @@ def get_dosage_example(num_actions, param_count):
     theta_r = utils.linear_regression(ft_grid, rewards, None)
     theta_s = utils.linear_regression(ft_grid, safetys, None)
     
+    var = 0.01
+    cov = var*outcome_correlation
+    
     bandit = BanditEnv(
         x_dist=lambda : 0, 
         action_space=action_space,
         feature_vector=rbf_feature_vector,
         reward_param=theta_r,
         safety_param=theta_s,
-        outcome_covariance=[[0.01,0],[0,0.01]]
+        outcome_covariance=[[var,cov],[cov,var]]
     )
     return bandit
 

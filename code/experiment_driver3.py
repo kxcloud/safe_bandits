@@ -11,9 +11,9 @@ project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
 #%% CHANGE SETTINGS HERE
-import experiments.polynomial_bandit as experiment_settings
-num_processes = 3
-num_runs = 500
+import experiments.dosage_bandit_negative_correlation as experiment_settings
+num_processes = None
+num_runs = 2
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
@@ -53,12 +53,12 @@ results_dict = visualize_results.read_combine_and_process_json(filenames)
 
 values_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
 
-title = "Random polynomial bandit"
+title = "Dosage bandit (outcome correlation: -0.5)"
 
 visualize_results.plot_many(
     values_sorted, 
     plot_confidence=True,
-    plot_baseline_rewards=False, 
+    plot_baseline_rewards=True, 
     plot_random_timesteps=False,
     include_mean_safety=False,
     moving_avg_window=5, 
