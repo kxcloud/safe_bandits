@@ -15,7 +15,7 @@ def main(argv):
     
     # Sloppy hack to get better runtime estimates across multiple processes
     alg_dict_items = experiment_settings.alg_dict.items()
-    if progress_dir is not None and process_idx % 2 == 0:
+    if progress_dir is not None and process_idx % 2 == 1:
         alg_dict_items = reversed(alg_dict_items)
     
     results_dict = {}

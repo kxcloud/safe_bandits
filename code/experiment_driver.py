@@ -13,7 +13,7 @@ data_path = os.path.join(project_path,"data")
 #%% CHANGE SETTINGS HERE
 import experiments.uniform_bandit as experiment_settings
 num_processes = None
-num_runs = 5
+num_runs = 0
 data_file_prefix = experiment_settings.__name__
 
 #%% Run experiments
@@ -52,12 +52,14 @@ else:
 filenames = glob.glob(os.path.join(data_path,f"{data_file_prefix}*.json"))
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
+values_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
+
 title = "Uniform armed bandit"
 
 visualize_results.plot_many(
-    results_dict.values(), 
+    values_sorted, 
     plot_confidence=True,
-    plot_baseline_rewards=False, 
+    plot_baseline_rewards=True, 
     plot_random_timesteps=False,
     include_mean_safety=False,
     moving_avg_window=5, 
@@ -67,7 +69,7 @@ visualize_results.plot_many(
 )
 
 visualize_results.plot_action_dist(
-    results_dict.values(), 
+    values_sorted, 
     num_to_plot=10, 
     drop_first_action=False, 
     figsize=(13,6), 
