@@ -539,6 +539,7 @@ def get_reward_baselines(bandit, baseline_policy, safety_tol, num_samples=2000):
     return best_average_safe_reward, baseline_average_reward
 
 def evaluate(
+        experiment_name,
         alg_label,
         bandit_constructor,
         learning_algorithm,
@@ -557,7 +558,8 @@ def evaluate(
     
     total_timesteps = num_random_timesteps + num_alg_timesteps
     results = {
-        "bandit_name" : bandit_constructor().__class__.__name__,
+        "experiment_name" : experiment_name,
+        "bandit_constructor_name" : bandit_constructor.__name__,
         "alg_label" : alg_label,
         "alg_name" : learning_algorithm.__name__,
         "num_random_timesteps" : num_random_timesteps,
