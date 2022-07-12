@@ -32,10 +32,10 @@ class BanditEnv:
         
         x = self.x_dist()
         a = self.action_space[0] 
-        x_length = len(x) if hasattr(x, "__len__") else 1
+        self.x_length = len(x) if hasattr(x, "__len__") else 1
         feature_length = len(self.feature_vector(x,a))
         
-        self.X = np.zeros((num_timesteps, num_instances, x_length))
+        self.X = np.zeros((num_timesteps, num_instances, self.x_length))
         self.phi_XA = np.zeros((num_timesteps, num_instances, feature_length))
         self.A = np.zeros_like(self.action_space, shape=(num_timesteps, num_instances))
         self.R = np.zeros((num_timesteps, num_instances))
@@ -124,7 +124,10 @@ class BanditEnv:
             return self.U[:self.t]
     
     def feature_vectorized(self, x_batch, a_batch):
-        x_is_batched = hasattr(x_batch, "__len__")
+        if self.x_length == 1:
+            x_is_batched = hasattr(x_batch, "__len__")
+        else:
+            x_is_batched = hasattr(x_batch[0], "__len__")
         a_is_batched = hasattr(a_batch, "__len__")
         
         if not x_is_batched and not a_is_batched:
@@ -216,6 +219,7 @@ def standard_bandit_rbf_feature(x, a, param_count):
     phi = rbf_preweight / rbf_preweight.sum()
     return phi
 
+
 # PRESET BANDIT ENVS
 
 def get_polynomial_bandit():
@@ -256,7 +260,7 @@ def get_random_polynomial_bandit(
         ),
         reward_param=theta_reward,
         safety_param=theta_safety,
-        outcome_covariance=[[0.1,0],[0,0.1]]
+        outcome_covariance=[[1,0],[0,1]]
     )
     return bandit
     
@@ -287,7 +291,7 @@ def get_power_checker(num_actions, effect_size):
     A non-contextual bandit with only one arm worth considering.
     """
     theta_reward = np.zeros(num_actions)
-    theta_reward[1:] = 100
+    theta_reward[1] = 100
     
     theta_safety = -np.ones(num_actions) * effect_size
     theta_safety[0] = 0
@@ -388,24 +392,56 @@ def get_uniform_armed_bandit(means, prob_negative):
         
     return bandit
 
+def get_high_dim_contextual_bandit(p, num_actions):
+    x_dim = 5
+    x_and_a_dim = 2*x_dim
+    
+    x_dist = utils.wrapped_partial(np.random.normal, size=x_dim)
+    action_space = np.linspace(-2, 2, num_actions)
+    
+    reward_param = np.random.normal(size=p, scale=10)
+    reward_param[p//2:] = 0 # half of contexts don't matter
+    safety_param = np.random.normal(size=p, scale=10)
+    safety_param[p//2:] = 0 # half of contexts don't matter
+
+    knots  = np.random.normal(size=(x_and_a_dim, p))
+    
+    def feature_vector(x, a):
+        distances = np.linalg.norm(np.append(x,[a]*x_dim)[:,None] - knots, 2, axis=0)
+        return np.exp(-distances)
+    
+    bandit = BanditEnv(
+        x_dist=x_dist, 
+        action_space=action_space,
+        feature_vector=feature_vector,
+        reward_param=reward_param,
+        safety_param=safety_param,
+        outcome_covariance=[[1,0],[0,1e-2]]
+    )
+    return bandit
+
 if __name__ == "__main__":
     num_instances = 1
-    bandit = get_dosage_example(20, 10)
-    bandit.reset(num_timesteps=5, num_instances=num_instances)
+    num_actions = 5
+    bandit = get_high_dim_contextual_bandit(p=5, num_actions=num_actions)
+    bandit.reset(10, 1)
+    import pandas as pd
     
-    x = bandit.sample()
-    bandit.act([bandit.action_space[0] for _ in range(num_instances)], np.ones(num_instances))
-    
-    x = bandit.sample()
-    bandit.act([bandit.action_space[0] for _ in range(num_instances)], np.ones(num_instances))
-    
-    fig, ax = plt.subplots()
-    x = bandit.x_dist()
-    ax.set_title(f"Action representations at x={x}")
-    ax.set_xlabel("Parameter weights")
-    
-    alphas = np.linspace(0.2, 1, len(bandit.action_space))
-    for idx, (a, alpha) in enumerate(zip(bandit.action_space, alphas)):
-        if idx % 3 ==0:
-            ax.plot(bandit.feature_vector(x,a), label=a, alpha=alpha, c="C0")
+    n = 10_000
+    records = []
+    for i in range(n):
+        x = bandit.sample()
+        for a_bound in np.linspace(0.5, 10, 20):
+            for a in np.linspace(-a_bound, a_bound, num_actions):
+                phi_xa = bandit.feature_vector(x, a)
+                r_xa = phi_xa @ bandit.reward_param
+                s_xa = phi_xa @ bandit.safety_param
+                records.append([i, a_bound, a, r_xa, s_xa])
+        
+    df = pd.DataFrame.from_records(records, columns=["x_id", "a_bound", "a","r","s"])
+    reward_gap = df.groupby(["x_id","a_bound"]).agg({"r":["min","max"]})
+    reward_gap.columns=["r_min","r_max"]
+    reward_range = reward_gap["r_max"] - reward_gap["r_min"]
+    avg_range_by_actions = reward_range.groupby(["a_bound"]).agg("mean")
+    avg_range_by_actions.plot()
     
