@@ -184,6 +184,20 @@ def get_splits(random_seeds, overlap):
     return indices_0, indices_1
 
 #%% Algorithms
+def alg_oracle(x, bandit, alpha, baseline_policy, safety_tol):
+    a_baseline = baseline_policy(x)
+    other_actions = [a for a in bandit.action_space if a != a_baseline]
+    
+    safety_baseline = bandit.feature_vector(x, a_baseline) @ bandit.safety_param
+    safety_other = bandit.feature_vectorized(x, other_actions) @ bandit.safety_param
+    
+    safe_actions = [a_baseline] + [
+        a for a, safety in zip(other_actions, safety_other) 
+        if safety > safety_baseline - safety_tol - 1e-8
+    ]
+    
+    a_opt = get_best_action(x, bandit.reward_param, bandit, available_actions=safe_actions)
+    return a_opt, None, {}
 
 def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
     beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
