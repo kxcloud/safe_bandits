@@ -27,8 +27,8 @@ experiment_list = [
     'all_safe', # Surface
     'polynomial_bandit', # Surface
 ]
-num_processes = None
-num_runs = 5
+num_processes = 4
+num_runs = 500
 
 #%% Run experiments
 for experiment_name in experiment_list:
