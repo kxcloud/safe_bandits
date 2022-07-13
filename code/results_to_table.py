@@ -117,7 +117,7 @@ if __name__ == "__main__":
     df = pd.DataFrame()
     
     for experiment_name in experiment_list:
-        filenames = glob.glob(os.path.join(data_path,f"{experiment_name}_0.json"))
+        filenames = glob.glob(os.path.join(data_path,f"{experiment_name}*.json"))
         print("Reading\n"+'\n'.join(filenames)+"...")
         results_dict = visualize_results.read_combine_and_process_json(filenames)
         results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]

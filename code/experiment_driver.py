@@ -15,11 +15,11 @@ data_path = os.path.join(project_path,"data")
 import experiments.algorithms_2022_07_12 as algorithm_settings
 experiment_list = [
     'dosage_bandit_zero_correlation', # Desktop
-    'dosage_bandit_negative_correlation', # Desktop
-    'dosage_bandit_positive_correlation', # Desktop
+    'dosage_bandit_negative_correlation',  # Work laptop
+    'dosage_bandit_positive_correlation',  # Work laptop
     'high_dim_contextual_5', # Work laptop
     'high_dim_contextual_10', # Work laptop
-    'high_dim_contextual_15', # Work laptop
+    'high_dim_contextual_15', # School laptop
     'power_checker_5', # School laptop
     'power_checker_10', # School laptop
     'power_checker_15', # School laptop
@@ -27,8 +27,8 @@ experiment_list = [
     'all_safe', # Surface
     'polynomial_bandit', # Surface
 ]
-num_processes = 3
-num_runs = 10
+num_processes = None
+num_runs = 5
 
 #%% Run experiments
 for experiment_name in experiment_list:
@@ -76,6 +76,9 @@ for experiment_name in experiment_list:
 
 #%% Plot
 filenames = glob.glob(os.path.join(data_path,f"{experiment_name}*.json"))
+if len(filenames) == 0:
+    print(f"No files found for {experiment_name} in {data_path}")
+
 print("Reading\n"+'\n'.join(filenames)+"...")
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 

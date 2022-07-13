@@ -327,6 +327,9 @@ def alg_propose_test_ts(
     if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
     
+    if not random_split:
+        raise NotImplementedError("SPT only supports random splits")
+    
     a_baseline = baseline_policy(x)
         
     phi_XA = bandit.get_phi_XA(flatten=False)

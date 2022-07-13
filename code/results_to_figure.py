@@ -47,11 +47,11 @@ experiment_list = [
     'all_safe',
     'dosage_bandit_zero_correlation',
     'dosage_bandit_negative_correlation',
-    # 'dosage_bandit_positive_correlation',
+    'dosage_bandit_positive_correlation',
     'high_dim_contextual_5',
     'high_dim_contextual_10',
     'high_dim_contextual_15',
-    # 'polynomial_bandit',
+    'polynomial_bandit',
     'power_checker_5',
     'power_checker_10',
     'power_checker_15',
@@ -72,7 +72,7 @@ fig, axes = plt.subplots(nrows=6, ncols=4, figsize=(10,14))
 axes_flat = axes.flatten()
 
 for experiment_idx, experiment in enumerate(experiment_list):
-    filenames = glob.glob(os.path.join(data_path,f"{experiment}_0.json"))
+    filenames = glob.glob(os.path.join(data_path,f"{experiment}*.json"))
     print("Reading\n"+'\n'.join(filenames)+"...")
     results_dict = visualize_results.read_combine_and_process_json(filenames)
     results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]

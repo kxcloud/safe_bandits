@@ -34,14 +34,14 @@ def get_alg_dict(baseline_policy, safety_tol):
                 correct_alpha=True, 
                 epsilon=EPSILON, 
             ),
-        "SPT (fallback) (unsafe)" : utils.wrapped_partial(
-                bandit_learning.alg_propose_test_ts_fwer_fallback,
-                baseline_policy=baseline_policy, 
-                correct_alpha=False, 
-                epsilon=EPSILON, 
-            )
+        # "SPT (fallback) (unsafe)" : utils.wrapped_partial(
+        #         bandit_learning.alg_propose_test_ts_fwer_fallback,
+        #         baseline_policy=baseline_policy, 
+        #         correct_alpha=False, 
+        #         epsilon=EPSILON, 
+        #     )
     }
     return alg_dict
 
-burn_in_samples_per_action = 8
+burn_in_samples_per_action = 4
 num_alg_timesteps = 350
