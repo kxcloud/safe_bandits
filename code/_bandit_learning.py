@@ -185,6 +185,21 @@ def get_splits(random_seeds, overlap):
     
     return indices_0, indices_1
 
+def get_stratified_splits(indices_by_action):
+    indices_0_list = [] 
+    indices_1_list = []
+    for a, indices_a in indices_by_action.items():
+        random.shuffle(indices_a) # modify inplace is ok because order doesn't matter
+        midpoint_a = len(indices_a)//2
+        indices_0_list = indices_0_list + indices_a[:midpoint_a]
+        indices_1_list = indices_1_list + indices_a[midpoint_a:]
+    
+    # Change list of tuples to tuple of lists for numpy compatibility
+    indices_0 = tuple(zip(*indices_0_list))
+    indices_1 = tuple(zip(*indices_1_list))
+    return indices_0, indices_1
+        
+
 #%% Algorithms
 def alg_oracle(x, t, bandit, alpha, baseline_policy, safety_tol):
     a_baseline = baseline_policy(x)
@@ -314,25 +329,17 @@ def alg_propose_test_ts(
     
     a_baseline = baseline_policy(x)
         
-    X = bandit.get_X().copy()
-    phi_XA = bandit.get_phi_XA().copy()
-    R = bandit.get_R().copy()
-    S = bandit.get_S().copy()
-    W = bandit.get_W().copy()
+    phi_XA = bandit.get_phi_XA(flatten=False)
+    R = bandit.get_R(flatten=False)
+    S = bandit.get_S(flatten=False)
     
-    if random_split:
-        n = len(X)
-        shuffled_indices = np.random.choice(n, size=n, replace=False)
-        for data in X, phi_XA, R, S:
-            data[:] = data[shuffled_indices]
-    
-    indices_0, indices_1 = get_splits(bandit.get_U(), sample_overlap)
-    phi_XA_1, R_1, S_1, W_1 = phi_XA[indices_0], R[indices_0], S[indices_0], W[indices_0]
-    phi_XA_2, R_2, S_2, W_2 = phi_XA[indices_1], R[indices_1], S[indices_1], W[indices_1]
+    indices_0, indices_1 = get_stratified_splits(bandit.indices_by_action)
+    phi_XA_1, R_1, S_1 = phi_XA[indices_0], R[indices_0], S[indices_0]
+    phi_XA_2, R_2, S_2 = phi_XA[indices_1], R[indices_1], S[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
     try:
-        beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
+        beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, np.ones_like(S_2))
     except np.linalg.linalg.LinAlgError:
         if WARN_ON_LINALG_ERROR:
             print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
@@ -342,7 +349,7 @@ def alg_propose_test_ts(
         sqrt_cov = sqrt_cov_2
     else:
         try:
-            _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
+            _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, np.ones_like(S_1))
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
             if WARN_ON_LINALG_ERROR:
@@ -350,7 +357,7 @@ def alg_propose_test_ts(
             return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     expected_improvement, split = get_expected_improvement_objective(
-        x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
+        x, a_baseline, phi_XA_1, R_1, S_1, np.ones_like(S_1), bandit, alpha, sqrt_cov, 
         objective_temperature, safety_tol, thompson_sampling
     )
         
@@ -397,6 +404,8 @@ def alg_propose_test_ts_smart_explore(
         safety_tol
     ):
     """
+    DEPRECATED: SPT above has functionality not implemented here
+    
     Matches Propose Test TS except uniform random exploration is replaced
     by 1/2 chance of playing proposed action, 1/2 chance of uniform.
     

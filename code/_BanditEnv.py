@@ -46,6 +46,8 @@ class BanditEnv:
         self.R_mean = np.zeros((num_timesteps, num_instances))
         self.S_mean = np.zeros((num_timesteps, num_instances))
         
+        self.indices_by_action = {a : [] for a in self.action_space}
+        
         self.t = 0
         self.current_x = None
     
@@ -60,24 +62,27 @@ class BanditEnv:
         return reward_noise, safety_noise
         
     def act(self, a_batch, a_prob_batch):
-        phi = self.feature_vectorized(self.current_x, a_batch)
+        phi_batch = self.feature_vectorized(self.current_x, a_batch)
 
-        mean_reward = phi @ self.reward_param
-        mean_safety = phi @ self.safety_param
+        mean_reward = phi_batch @ self.reward_param
+        mean_safety = phi_batch @ self.safety_param
                         
         reward_noise, safety_noise = self._get_noise(a_batch)
         
-        r, s = mean_reward + reward_noise, mean_safety + safety_noise
+        r_batch, s_batch = mean_reward + reward_noise, mean_safety + safety_noise
         
         self.X[self.t] = self.current_x#[:, None]
-        self.phi_XA[self.t] = phi
+        self.phi_XA[self.t] = phi_batch
         self.A[self.t] = a_batch
-        self.R[self.t] = r
-        self.S[self.t] = s
+        self.R[self.t] = r_batch
+        self.S[self.t] = s_batch
         # self.W[self.t] = np.sqrt(1/np.array(a_prob_batch))
         
         self.R_mean[self.t] = mean_reward
         self.S_mean[self.t] = mean_safety
+        
+        for instance_idx, a in enumerate(a_batch):
+            self.indices_by_action[a].append((self.t, instance_idx))
         
         self.t += 1
     
