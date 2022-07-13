@@ -7,14 +7,21 @@ import _utils as utils
 
 def main(argv):
     settings_filename = argv[1]
-    data_filename = argv[2]
-    num_runs = int(argv[3])
-    progress_dir = argv[4]
-    process_idx = int(argv[5])
+    algorithm_filename = argv[2]
+    data_filename = argv[3]
+    num_runs = int(argv[4])
+    progress_dir = argv[5]
+    process_idx = int(argv[6])
     experiment_settings = importlib.import_module(settings_filename)
+    algorithm_settings = importlib.import_module(algorithm_filename)
+    
+    alg_dict = algorithm_settings.get_alg_dict(
+        baseline_policy = experiment_settings.baseline_policy,
+        safety_tol = experiment_settings.safety_tol
+    )
     
     # Sloppy hack to get better runtime estimates across multiple processes
-    alg_dict_items = experiment_settings.alg_dict.items()
+    alg_dict_items = alg_dict.items()
     if progress_dir is not None and process_idx % 2 == 1:
         alg_dict_items = reversed(alg_dict_items)
     

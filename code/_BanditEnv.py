@@ -416,7 +416,7 @@ def get_high_dim_contextual_bandit(p, num_actions):
         feature_vector=feature_vector,
         reward_param=reward_param,
         safety_param=safety_param,
-        outcome_covariance=[[1,0],[0,1e-2]]
+        outcome_covariance=[[1e-1,0],[0,5e-3]]
     )
     return bandit
 
