@@ -217,7 +217,7 @@ def alg_fwer_pretest_eps_greedy(
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
         print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
-        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline], "Linalg error":None}
     
     safe_actions = [a_baseline] + test_many_actions(
         x = x,
@@ -265,7 +265,7 @@ def alg_fwer_pretest_ts(
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
         print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
-        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline]}
+        return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline], "Linalg error":None}
     
     safe_actions = [a_baseline] + test_many_actions(
         x = x,
@@ -330,7 +330,7 @@ def alg_propose_test_ts(
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
         print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
-        return np.random.choice(bandit.action_space), None, {}
+        return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
@@ -340,7 +340,7 @@ def alg_propose_test_ts(
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
             print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
-            return np.random.choice(bandit.action_space), None, {}
+            return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
@@ -419,7 +419,7 @@ def alg_propose_test_ts_smart_explore(
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
         print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
-        return np.random.choice(bandit.action_space), None, {}
+        return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     if use_out_of_sample_covariance:
         sqrt_cov = sqrt_cov_2
@@ -429,7 +429,7 @@ def alg_propose_test_ts_smart_explore(
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
             print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
-            return np.random.choice(bandit.action_space), None, {}
+            return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     expected_improvement, split = get_expected_improvement_objective(
         x, a_baseline, phi_XA_1, R_1, S_1, W_1, bandit, alpha, sqrt_cov, 
@@ -471,7 +471,7 @@ def alg_propose_test_ts_smart_explore(
     
 
 def alg_propose_test_ts_fwer_fallback(
-        x, bandit, alpha, baseline_policy, correct_alpha, num_actions_to_test, epsilon, safety_tol
+        x, bandit, alpha, baseline_policy, correct_alpha, epsilon, safety_tol
     ):
     a_baseline = baseline_policy(x)
 
@@ -570,6 +570,7 @@ def evaluate(
         "safety_ind" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "agreed_with_baseline" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "action_inds" : np.zeros((num_runs, num_alg_timesteps, num_instances, len(action_space)), dtype=bool),
+        "linalg_errors" : np.zeros((num_runs, num_alg_timesteps), dtype=bool),
         "action_space" : action_space,
         "alpha" : alpha,
         "safety_tol" : safety_tol,
@@ -592,11 +593,13 @@ def evaluate(
             a_batch = []
             a_prob_batch = []
             for instance_idx, x in enumerate(x_batch):
-                a, a_prob, _ = learning_algorithm(
-                    x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol
+                a, a_prob, info = learning_algorithm(
+                    x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol,
                 )
                 a_batch.append(a)
                 results["action_inds"][run_idx, t, instance_idx, bandit.action_idx[a]] = 1
+                if "Linalg error" in info:
+                    results["linalg_errors"][run_idx, t] = True
                 a_prob_batch.append(a_prob)
             bandit.act(a_batch, a_prob_batch)
         
