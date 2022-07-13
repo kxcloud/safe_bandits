@@ -16,8 +16,6 @@ evaluator = utils.wrapped_partial(
     experiment_name=f"Polynomial bandit (p={2})",
     bandit_constructor=bandit_constructor,
     baseline_policy=baseline_policy,
-    num_random_timesteps=20,
-    num_alg_timesteps=380,
     num_instances=1,
     alpha=0.1,
     safety_tol=safety_tol

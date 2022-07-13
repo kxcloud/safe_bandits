@@ -42,3 +42,6 @@ def get_alg_dict(baseline_policy, safety_tol):
             )
     }
     return alg_dict
+
+burn_in_samples_per_action = 8
+num_alg_timesteps = 350

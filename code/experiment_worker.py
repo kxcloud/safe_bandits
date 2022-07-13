@@ -30,6 +30,8 @@ def main(argv):
         results = experiment_settings.evaluator(
             alg_label=alg_label,
             learning_algorithm=learning_algorithm,
+            burn_in_samples_per_action=algorithm_settings.burn_in_samples_per_action,
+            num_alg_timesteps=algorithm_settings.num_alg_timesteps,
             num_runs=num_runs,
         )
         results_dict[alg_label] = results
