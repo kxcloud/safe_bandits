@@ -69,7 +69,7 @@ class BanditEnv:
         
         r, s = mean_reward + reward_noise, mean_safety + safety_noise
         
-        self.X[self.t] = self.current_x[:, None]
+        self.X[self.t] = self.current_x#[:, None]
         self.phi_XA[self.t] = phi
         self.A[self.t] = a_batch
         self.R[self.t] = r
