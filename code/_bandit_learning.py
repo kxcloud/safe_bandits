@@ -186,7 +186,7 @@ def get_splits(random_seeds, overlap):
     return indices_0, indices_1
 
 #%% Algorithms
-def alg_oracle(x, bandit, alpha, baseline_policy, safety_tol):
+def alg_oracle(x, t, bandit, alpha, baseline_policy, safety_tol):
     a_baseline = baseline_policy(x)
     other_actions = [a for a in bandit.action_space if a != a_baseline]
     
@@ -201,15 +201,15 @@ def alg_oracle(x, bandit, alpha, baseline_policy, safety_tol):
     a_opt = get_best_action(x, bandit.reward_param, bandit, available_actions=safe_actions)
     return a_opt, None, {}
 
-def alg_eps_greedy(x, bandit, alpha, epsilon, safety_tol):
+def alg_eps_greedy(x, t, bandit, alpha, epsilon, safety_tol):
     beta_hat_R = utils.linear_regression(bandit.get_phi_XA(), bandit.get_R())
     a_max = get_best_action(x, beta_hat_R, bandit)
     
-    a, a_prob = get_e_greedy_action_and_probs(a_max, epsilon(bandit.t), bandit.action_space)
+    a, a_prob = get_e_greedy_action_and_probs(a_max, epsilon(t), bandit.action_space)
     return a, a_prob, {}
 
 def alg_fwer_pretest_eps_greedy(
-        x, bandit, alpha, baseline_policy, epsilon, safety_tol
+        x, t, bandit, alpha, baseline_policy, epsilon, safety_tol
     ):
     
     a_baseline = baseline_policy(x)
@@ -242,11 +242,11 @@ def alg_fwer_pretest_eps_greedy(
         a_selected = get_best_action(x, beta_hat_R, bandit, available_actions=safe_actions)
         info["beta_hat_R_bs"] = beta_hat_R
     
-    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon(bandit.t), bandit.action_space)
+    a, a_prob = get_e_greedy_action_and_probs(a_selected, epsilon(t), bandit.action_space)
     return a, a_prob, info
     
-def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
-    if random.random() < epsilon(bandit.t):
+def alg_unsafe_ts(x, t, bandit, alpha, epsilon, safety_tol):
+    if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
     
     phi_XA_bs, R_bs = bsample([bandit.get_phi_XA(), bandit.get_R()])    
@@ -256,9 +256,9 @@ def alg_unsafe_ts(x, bandit, alpha, epsilon, safety_tol):
     return a, None, {}
 
 def alg_fwer_pretest_ts(
-        x, bandit, alpha, baseline_policy, epsilon, safety_tol
+        x, t, bandit, alpha, baseline_policy, epsilon, safety_tol
     ):
-    if random.random() < epsilon(bandit.t):
+    if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
@@ -297,6 +297,7 @@ def alg_fwer_pretest_ts(
 
 def alg_propose_test_ts(
         x, 
+        t,
         bandit, 
         alpha, 
         baseline_policy, 
@@ -308,7 +309,7 @@ def alg_propose_test_ts(
         epsilon,
         safety_tol
     ):
-    if random.random() < epsilon(bandit.t):
+    if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_baseline = baseline_policy(x)
@@ -383,6 +384,7 @@ def alg_propose_test_ts(
 
 def alg_propose_test_ts_smart_explore(
         x, 
+        t,
         bandit, 
         alpha, 
         baseline_policy, 
@@ -470,26 +472,27 @@ def alg_propose_test_ts_smart_explore(
     
     a_selected = a_hat if test_result else a_baseline
     
-    a_probs = np.full(len(bandit.action_space), fill_value=epsilon(bandit.t)/len(bandit.action_space)/2)
-    a_probs[bandit.action_idx[a_hat]] += epsilon(bandit.t)/2
-    a_probs[bandit.action_idx[a_selected]] += 1-epsilon(bandit.t)
+    a_probs = np.full(len(bandit.action_space), fill_value=epsilon(t)/len(bandit.action_space)/2)
+    a_probs[bandit.action_idx[a_hat]] += epsilon(t)/2
+    a_probs[bandit.action_idx[a_selected]] += 1-epsilon(t)
     a = np.random.choice(bandit.action_space, p=a_probs)
     a_prob = a_probs[bandit.action_idx[a]]
     return a, a_prob, info
     
 
 def alg_propose_test_ts_fwer_fallback(
-        x, bandit, alpha, baseline_policy, correct_alpha, epsilon, safety_tol
+        x, t, bandit, alpha, baseline_policy, correct_alpha, epsilon, safety_tol
     ):
     a_baseline = baseline_policy(x)
 
     alpha = alpha/2 if correct_alpha else alpha
 
-    if random.random() < epsilon(bandit.t):
+    if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
     
     a_safe_ts, _, _ = alg_propose_test_ts(
         x,
+        t,
         bandit,
         alpha, 
         baseline_policy, 
@@ -505,6 +508,7 @@ def alg_propose_test_ts_fwer_fallback(
     if a_safe_ts == a_baseline:
         a_pretest, _ , _ = alg_fwer_pretest_eps_greedy(
             x, 
+            t,
             bandit, 
             alpha, 
             baseline_policy, 
@@ -552,7 +556,7 @@ def evaluate(
         bandit_constructor,
         learning_algorithm,
         baseline_policy,
-        num_random_timesteps,
+        burn_in_samples_per_action,
         num_alg_timesteps,
         num_instances,
         num_runs,
@@ -563,21 +567,23 @@ def evaluate(
     start_time = time.time()
 
     action_space = bandit_constructor().action_space
+    num_burn_in_steps = burn_in_samples_per_action * len(action_space)
     
-    total_timesteps = num_random_timesteps + num_alg_timesteps
+    total_timesteps = num_burn_in_steps + num_alg_timesteps
     results = {
         "experiment_name" : experiment_name,
         "bandit_constructor_name" : bandit_constructor.__name__,
         "alg_label" : alg_label,
         "alg_name" : learning_algorithm.__name__,
-        "num_random_timesteps" : num_random_timesteps,
+        "num_burn_in_timesteps" : num_burn_in_steps,
+        "num_random_timesteps" : num_burn_in_steps, # To preserve backwards compatibility
         "num_alg_timesteps" : num_alg_timesteps,
         "num_instances" : num_instances,
         "mean_reward" : np.zeros((num_runs, total_timesteps, num_instances)),
-        "mean_safety" : np.zeros((num_runs, total_timesteps, num_instances)),
+        # "mean_safety" : np.zeros((num_runs, total_timesteps, num_instances)),
         "safety_ind" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
         "agreed_with_baseline" : np.zeros((num_runs, total_timesteps, num_instances), dtype=bool),
-        "action_inds" : np.zeros((num_runs, num_alg_timesteps, num_instances, len(action_space)), dtype=bool),
+        # "action_inds" : np.zeros((num_runs, num_alg_timesteps, num_instances, len(action_space)), dtype=bool),
         "linalg_errors" : np.zeros((num_runs, num_alg_timesteps), dtype=bool),
         "action_space" : action_space,
         "alpha" : alpha,
@@ -590,10 +596,11 @@ def evaluate(
         bandit = bandit_constructor()
         bandit.reset(total_timesteps, num_instances)
         
-        for i in range(num_random_timesteps):
+        for i in range(num_burn_in_steps):
             bandit.sample() # Note: required to step bandit forward
-            a_batch = np.random.choice(bandit.action_space, size=num_instances)
-            a_probs_batch = np.full(num_instances, 1/len(bandit.action_space))
+            a = action_space[i % len(bandit.action_space)]
+            a_batch = [a] * num_instances
+            a_probs_batch = [None] * num_instances
             bandit.act(a_batch, a_probs_batch)
 
         for t in range(num_alg_timesteps):
@@ -602,17 +609,17 @@ def evaluate(
             a_prob_batch = []
             for instance_idx, x in enumerate(x_batch):
                 a, a_prob, info = learning_algorithm(
-                    x=x, bandit=bandit, alpha=alpha, safety_tol=safety_tol,
+                    x=x, t=t, bandit=bandit, alpha=alpha, safety_tol=safety_tol,
                 )
                 a_batch.append(a)
-                results["action_inds"][run_idx, t, instance_idx, bandit.action_idx[a]] = 1
+                # results["action_inds"][run_idx, t, instance_idx, bandit.action_idx[a]] = 1
                 if "Linalg error" in info:
                     results["linalg_errors"][run_idx, t] = True
                 a_prob_batch.append(a_prob)
             bandit.act(a_batch, a_prob_batch)
         
         results["mean_reward"][run_idx] = bandit.R_mean
-        results["mean_safety"][run_idx] = bandit.S_mean
+        # results["mean_safety"][run_idx] = bandit.S_mean
         
         agreement = [baseline_policy(x) == a for (x,a) in zip(bandit.X, bandit.A)]
         results["agreed_with_baseline"][run_idx] = agreement
@@ -642,7 +649,7 @@ def evaluate(
         print(
             f"Evaluated {learning_algorithm.__name__} {num_runs}"
             f" times in {duration:0.02f} minutes."
-            f" (Linalg error rate={linalg_error_rate:0.0f}%)"
+            f" (Linalg error rate: {linalg_error_rate:0.0f}%)"
         )
     return results
 
