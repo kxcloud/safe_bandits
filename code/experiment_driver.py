@@ -14,19 +14,21 @@ data_path = os.path.join(project_path,"data")
 # CHANGE SETTINGS HERE
 import experiments.algorithms_2022_07_12 as algorithm_settings
 experiment_list = [
-    'all_safe',
-    'dosage_bandit',
-    'dosage_bandit_negative_correlation',
-    'dosage_bandit_positive_correlation',
-    'high_dim_contextual',
-    'polynomial_bandit',
-    'power_checker_10',
-    'power_checker_15',
-    'power_checker_5',
-    'uniform_bandit',
+    'dosage_bandit_zero_correlation', # Desktop
+    'dosage_bandit_negative_correlation', # Desktop
+    'dosage_bandit_positive_correlation', # Desktop
+    'high_dim_contextual_5', # Work laptop
+    'high_dim_contextual_10', # Work laptop
+    'high_dim_contextual_15', # Work laptop
+    'power_checker_5', # School laptop
+    'power_checker_10', # School laptop
+    'power_checker_15', # School laptop
+    'uniform_bandit', # Surface
+    'all_safe', # Surface
+    'polynomial_bandit', # Surface
 ]
-num_processes = 2
-num_runs = 2
+num_processes = 4
+num_runs = 300
 
 #%% Run experiments
 for experiment_name in experiment_list:

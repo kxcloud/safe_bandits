@@ -14,6 +14,8 @@ code_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
+WARN_ON_LINALG_ERROR = False
+
 def bsample(list_of_data):
     n = len(list_of_data[0])
     bs_indices = np.random.choice(n, size=n)
@@ -216,7 +218,8 @@ def alg_fwer_pretest_eps_greedy(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
-        print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
+        if WARN_ON_LINALG_ERROR:
+            print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline], "Linalg error":None}
     
     safe_actions = [a_baseline] + test_many_actions(
@@ -264,7 +267,8 @@ def alg_fwer_pretest_ts(
     try:
         beta_hat_S, sqrt_cov = estimate_safety_param_and_covariance(phi_XA, bandit.get_S(), bandit.get_W())
     except np.linalg.linalg.LinAlgError:
-        print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
+        if WARN_ON_LINALG_ERROR:
+            print(f"Linalg error on covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"safe_actions" : [a_baseline], "Linalg error":None}
     
     safe_actions = [a_baseline] + test_many_actions(
@@ -329,7 +333,8 @@ def alg_propose_test_ts(
     try:
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
-        print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
+        if WARN_ON_LINALG_ERROR:
+            print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     if use_out_of_sample_covariance:
@@ -339,7 +344,8 @@ def alg_propose_test_ts(
             _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
-            print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
+            if WARN_ON_LINALG_ERROR:
+                print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
             return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     expected_improvement, split = get_expected_improvement_objective(
@@ -418,7 +424,8 @@ def alg_propose_test_ts_smart_explore(
     try:
         beta_hat_S_2, sqrt_cov_2 = estimate_safety_param_and_covariance(phi_XA_2, S_2, W_2)
     except np.linalg.linalg.LinAlgError:
-        print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
+        if WARN_ON_LINALG_ERROR:
+            print(f"Linalg error on test set covariance estimation (t={bandit.t}). Sampling randomly.")
         return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     if use_out_of_sample_covariance:
@@ -428,7 +435,8 @@ def alg_propose_test_ts_smart_explore(
             _, sqrt_cov_1 = estimate_safety_param_and_covariance(phi_XA_1, S_1, W_1)
             sqrt_cov = sqrt_cov_1
         except np.linalg.linalg.LinAlgError:
-            print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
+            if WARN_ON_LINALG_ERROR:
+                print(f"Linalg error on propose set covariance estimation (t={bandit.t}). Sampling randomly.")
             return np.random.choice(bandit.action_space), None, {"Linalg error":None}
     
     expected_improvement, split = get_expected_improvement_objective(
@@ -627,11 +635,14 @@ def evaluate(
     )              
     results["best_safe_reward"] = best_safe_reward
     results["baseline_reward"] = baseline_reward    
-        
+    
+    linalg_error_rate = 100*results["linalg_errors"].mean()
+    
     if print_time:
         print(
             f"Evaluated {learning_algorithm.__name__} {num_runs}"
             f" times in {duration:0.02f} minutes."
+            f" (Linalg error rate={linalg_error_rate:0.0f}%)"
         )
     return results
 

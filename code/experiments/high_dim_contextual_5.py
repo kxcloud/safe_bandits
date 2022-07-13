@@ -2,10 +2,10 @@ import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning
 import _utils as utils
 
-p = 10
+d = 5
 
 bandit_constructor = utils.wrapped_partial(
-    BanditEnv.get_high_dim_contextual_bandit, num_actions=5, p=p
+    BanditEnv.get_high_dim_contextual_bandit, num_actions=5, p=d
 )
 
 EPSILON = lambda t: 0.1 / (t+1)**0.1
@@ -14,7 +14,7 @@ baseline_policy = lambda x: -2
 
 evaluator = utils.wrapped_partial(
     bandit_learning.evaluate,
-    experiment_name=f"High-dim context (d={p})",
+    experiment_name=f"High-dim context (d={d})",
     bandit_constructor=bandit_constructor,
     baseline_policy=baseline_policy,
     num_random_timesteps=25,

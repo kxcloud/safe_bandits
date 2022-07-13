@@ -13,7 +13,7 @@ def get_alg_dict(baseline_policy, safety_tol):
             bandit_learning.alg_oracle,
             baseline_policy=baseline_policy
         ),
-        "FWER pretest TS" : utils.wrapped_partial(
+        "Pretest all" : utils.wrapped_partial(
                 bandit_learning.alg_fwer_pretest_ts, 
                 baseline_policy=baseline_policy,
                 epsilon=EPSILON
@@ -28,13 +28,13 @@ def get_alg_dict(baseline_policy, safety_tol):
                 objective_temperature=1,
                 epsilon=EPSILON
             ),
-        "SPT (FWER fallback) (safe)" : utils.wrapped_partial(
+        "SPT (fallback) (safe)" : utils.wrapped_partial(
                 bandit_learning.alg_propose_test_ts_fwer_fallback,
                 baseline_policy=baseline_policy, 
                 correct_alpha=True, 
                 epsilon=EPSILON, 
             ),
-        "SPT (FWER fallback) (unsafe)" : utils.wrapped_partial(
+        "SPT (fallback) (unsafe)" : utils.wrapped_partial(
                 bandit_learning.alg_propose_test_ts_fwer_fallback,
                 baseline_policy=baseline_policy, 
                 correct_alpha=False, 
