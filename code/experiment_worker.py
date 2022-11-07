@@ -17,7 +17,6 @@ def main(argv):
     
     alg_dict = algorithm_settings.get_alg_dict(
         baseline_policy = experiment_settings.baseline_policy,
-        safety_tol = experiment_settings.safety_tol
     )
     
     # Sloppy hack to get better runtime estimates across multiple processes
