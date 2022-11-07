@@ -12,23 +12,24 @@ project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
 # CHANGE SETTINGS HERE
-import experiments.algorithms_2022_07_12 as algorithm_settings
+import experiments.algorithms_2022_11_06 as algorithm_settings
 experiment_list = [
-    'dosage_bandit_zero_correlation', # Desktop
-    'dosage_bandit_negative_correlation',  # Work laptop
-    'dosage_bandit_positive_correlation',  # Work laptop
-    'high_dim_contextual_5', # Work laptop
-    'high_dim_contextual_10', # Work laptop
-    'high_dim_contextual_15', # School laptop
-    'power_checker_5', # School laptop
-    'power_checker_10', # School laptop
-    'power_checker_15', # School laptop
-    'uniform_bandit', # Surface
-    'all_safe', # Surface
-    'polynomial_bandit', # Surface
+    # 'dosage_bandit_zero_correlation', # Desktop
+    # 'dosage_bandit_negative_correlation',  # Work laptop
+    # 'dosage_bandit_positive_correlation',  # Work laptop
+    'noisy_bandit_2_p5',
+    # 'high_dim_contextual_5', # Work laptop
+    # 'high_dim_contextual_10', # Work laptop
+    # 'high_dim_contextual_15', # School laptop
+    # 'power_checker_5', # School laptop
+    # 'power_checker_10', # School laptop
+    # 'power_checker_15', # School laptop
+    # 'uniform_bandit', # Surface
+    # 'all_safe', # Surface
+    # 'polynomial_bandit', # Surface
 ]
-num_processes = 4
-num_runs = 500
+num_processes = None
+num_runs = 40
 
 #%% Run experiments
 for experiment_name in experiment_list:
@@ -49,7 +50,7 @@ for experiment_name in experiment_list:
         experiment_worker.main(argv)
     else:
         progress_dir = os.path.join(data_path,f"{experiment_name}_TMP")
-        num_algs = len(algorithm_settings.get_alg_dict(None,None))
+        num_algs = len(algorithm_settings.get_alg_dict(None))
         pbar = ProgressTracker.ProgressTracker(
             total_steps = num_processes*num_algs,
             progress_dir = progress_dir,
@@ -82,7 +83,8 @@ if len(filenames) == 0:
 print("Reading\n"+'\n'.join(filenames)+"...")
 results_dict = visualize_results.read_combine_and_process_json(filenames)
 
-results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
+sorted_keys = sorted(results_dict.keys())
+results_sorted = [results_dict[key] for key in sorted_keys]
 
 title = results_sorted[0]["experiment_name"]
 
@@ -94,6 +96,7 @@ visualize_results.plot_many(
     include_mean_safety=False,
     moving_avg_window=20, 
     title=title,
-    figsize=(13,5),
-    colors=None
+    figsize=(10,4),
+    colors=["gray" if name in ['Baseline', 'Oracle'] else None for name in sorted_keys],
+    linestyles=[":" if name in ['Baseline', 'Oracle'] else None for name in sorted_keys],
 )
