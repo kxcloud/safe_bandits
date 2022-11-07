@@ -201,6 +201,11 @@ def get_stratified_splits(indices_by_action):
         
 
 #%% Algorithms
+def alg_unsafe_oracle(x, t, bandit, alpha, baseline_policy, safety_tol):
+    a_opt = get_best_action(x, bandit.reward_param, bandit)
+    return a_opt, None, {}
+
+
 def alg_oracle(x, t, bandit, alpha, baseline_policy, safety_tol):
     a_baseline = baseline_policy(x)
     other_actions = [a for a in bandit.action_space if a != a_baseline]
@@ -604,8 +609,10 @@ def evaluate(
         "duration" : None
     }
     
+    rng = np.random.default_rng(seed=47)
+    
     for run_idx in range(num_runs):
-        bandit = bandit_constructor()
+        bandit = bandit_constructor(rng=rng)
         bandit.reset(total_timesteps, num_instances)
         
         for i in range(num_burn_in_steps):
