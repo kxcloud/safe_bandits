@@ -3,7 +3,7 @@ import os
 
 import matplotlib.pyplot as plt
 import matplotlib.style as style
-style.use('tableau-colorblind10')
+# style.use('tableau-colorblind10')
 import numpy as np
 import pandas as pd
 
@@ -56,6 +56,7 @@ def plot(
         plot_confidence=True, 
         moving_avg_window=None, 
         color=None,
+        linestyle=None,
         plot_random_timesteps=True,
         include_mean_safety=True,
     ):
@@ -84,7 +85,7 @@ def plot(
             mean = pd.Series(mean).rolling(moving_avg_window).mean()
             
         label = results["alg_label"] if ax is ax_agreement else None
-        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2.5)
+        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2.5, ls=linestyle)
         
         if plot_confidence:
             num_runs = results[result_key].shape[0]
@@ -94,8 +95,9 @@ def plot(
             if moving_avg_window:
                 ci_width = pd.Series(ci_width).rolling(moving_avg_window).mean()
                         
-            ax.plot(timesteps, mean+ci_width, c=lines[0].get_color(), lw=1, ls="--")
-            ax.plot(timesteps, mean-ci_width, c=lines[0].get_color(), lw=1, ls="--")
+            ax.fill_between(
+                timesteps, mean-ci_width, mean+ci_width, color=lines[0].get_color(), alpha=0.1 #0.25
+            )
                 
         ax.set_title(title)
    
@@ -119,6 +121,7 @@ def plot_many(
         plot_baseline_rewards=True, 
         plot_confidence=True,
         colors=None, 
+        linestyles=None,
         moving_avg_window=None, 
         plot_random_timesteps=True,
         include_mean_safety=True,
@@ -131,14 +134,19 @@ def plot_many(
     
     if colors is None:
         colors = [None]*len(results_list)
+
+    if linestyles is None:
+        linestyles = [None]*len(results_list)
         
-    for results, color in zip(results_list, colors):
+        
+    for results, color, linestyle in zip(results_list, colors, linestyles):
         plot(
             results, 
             axes=axes, 
             plot_confidence=plot_confidence,
             moving_avg_window=moving_avg_window,
             color=color, 
+            linestyle=linestyle,
             plot_random_timesteps=plot_random_timesteps,
             include_mean_safety=include_mean_safety
         )
@@ -147,6 +155,7 @@ def plot_many(
     
     # WARNING: this assumes best_safe_reward is the same for all runs
     if plot_baseline_rewards:
+        print("Warning: plot_baseline_rewards assumes fixed environment.")
         axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)      
         axes[0].axhline(results["baseline_reward"], ls=":", c="black", lw=1)
         

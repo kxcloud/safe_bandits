@@ -40,8 +40,13 @@ def plot_df(df, ax, algs_to_include, include_ci=False, alg_relabeler={}):
             ax.plot(data, label=alg_label_legend, c=color, lw=2)
             if include_ci:
                 ci_width = 1.96*df[alg_label+"_se"]
-                ax.plot(data+ci_width, ls="--", c=color, alpha=0.5, lw=1)
-                ax.plot(data-ci_width, ls="--", c=color, alpha=0.5, lw=1)
+                
+                # ax.plot(data+ci_width, ls="--", c=color, alpha=0.5, lw=1)
+                # ax.plot(data-ci_width, ls="--", c=color, alpha=0.5, lw=1)
+            
+                ci_lb = data-ci_width
+                ci_ub = data+ci_width
+                ax.fill_between(list(data.index), ci_lb, ci_ub, color=color, alpha=0.25) 
             
 experiment_list = [
     'all_safe',
@@ -66,7 +71,8 @@ algs_to_include = [
 ]
 
 alg_relabeler = {"SPT (fallback) (safe)" : "SPT (fallback)"}
-setting_relabeler = {"Power checker" : "Single-arm detection"}
+setting_relabeler = {"Power checker" : "Single-arm detection", "High-dim context": "Noisy context"}
+    
 
 nrows=(len(experiment_list)+1)//2
 
@@ -89,7 +95,7 @@ if len(experiment_list) % 2 == 1:
     axes[-1,-1].axis("off")
 
 for experiment_idx, experiment in enumerate(experiment_list):
-    filenames = glob.glob(os.path.join(data_path,f"hide\\{experiment}*.json"))
+    filenames = glob.glob(os.path.join(data_path,f"{experiment}*.json"))
     print("Reading\n"+'\n'.join(filenames)+"...")
     results_dict = visualize_results.read_combine_and_process_json(filenames)
     results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
@@ -122,7 +128,7 @@ for row_idx in range(nrows):
     if row_idx != nrows-1:
         axes[row_idx,3].set_xticks([])
 axes[0,1].set_xticks([])
-axes_flat[0].set_ylabel("Reward", labelpad=-5)
+axes_flat[0].set_ylabel("Reward")
 axes_flat[1].set_ylabel("Safety", labelpad=-15)
 axes[-1,0].set_xlabel("Timestep")
 
