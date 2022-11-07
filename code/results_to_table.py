@@ -117,7 +117,7 @@ if __name__ == "__main__":
     ]
     
     alg_relabeler = {"SPT (fallback) (safe)" : "SPT (fallback)"}
-    setting_relabeler = {"Power checker" : "Single-arm detection"}
+    setting_relabeler = {"Power checker" : "Single-arm detection", "High-dim context": "Noisy context"}
     
     timescales = ["Average", "Final"]
     dfs = [pd.DataFrame(), pd.DataFrame()]
