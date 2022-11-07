@@ -18,6 +18,8 @@ experiment_list = [
     # 'dosage_bandit_negative_correlation',  # Work laptop
     # 'dosage_bandit_positive_correlation',  # Work laptop
     'noisy_bandit_2_p5',
+    'noisy_bandit_2_p10',
+    'noisy_bandit_2_p15',
     # 'high_dim_contextual_5', # Work laptop
     # 'high_dim_contextual_10', # Work laptop
     # 'high_dim_contextual_15', # School laptop
@@ -28,8 +30,8 @@ experiment_list = [
     # 'all_safe', # Surface
     # 'polynomial_bandit', # Surface
 ]
-num_processes = None
-num_runs = 40
+num_processes = 4
+num_runs = 500
 
 #%% Run experiments
 for experiment_name in experiment_list:
@@ -97,6 +99,6 @@ visualize_results.plot_many(
     moving_avg_window=20, 
     title=title,
     figsize=(10,4),
-    colors=["gray" if name in ['Baseline', 'Oracle'] else None for name in sorted_keys],
-    linestyles=[":" if name in ['Baseline', 'Oracle'] else None for name in sorted_keys],
+    colors=["gray" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
+    linestyles=[":" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
 )
