@@ -129,10 +129,7 @@ class BanditEnv:
             return self.U[:self.t]
     
     def feature_vectorized(self, x_batch, a_batch):
-        if self.x_length == 1:
-            x_is_batched = hasattr(x_batch, "__len__")
-        else:
-            x_is_batched = hasattr(x_batch[0], "__len__")
+        x_is_batched = hasattr(x_batch[0], "__len__")
         a_is_batched = hasattr(a_batch, "__len__")
         
         if not x_is_batched and not a_is_batched:
@@ -147,6 +144,7 @@ class BanditEnv:
             x_batch = [x_to_broadcast for a in a_batch]
         
         phi_XA = []
+        assert len(x_batch) == len(a_batch), "Contexts and actions must be same size"
         for x, a in zip(x_batch, a_batch):
             phi_XA.append(self.feature_vector(x, a))
         return np.array(phi_XA)
@@ -202,6 +200,8 @@ class BanditEnv:
 # Apply on single (x,a) pairs -- no broadcasting
 # "Standard bandit" means the context is ignored
 
+random_uniform = utils.wrapped_partial(np.random.uniform, size=1)
+
 def orthogonal_polynomial_feature(x, a, p, num_actions):
     """ Assumes action space is {0, 1, ... num_actions-1}. """
     polynomial_terms = p+1
@@ -237,7 +237,7 @@ def get_polynomial_bandit(rng):
     theta_safety = np.concatenate((theta_safety_0, theta_safety_1))
     
     bandit = BanditEnv(
-        x_dist=np.random.uniform, 
+        x_dist=random_uniform, 
         action_space=[0,1],
         feature_vector=utils.wrapped_partial(
             orthogonal_polynomial_feature, p=3, num_actions=2
@@ -255,10 +255,10 @@ def get_random_polynomial_bandit(
     
     param_size = (p+1)*num_actions
     theta_reward = rng.normal(size=param_size)
-    theta_safety = rng.normal(size=param_size)  
+    theta_safety = rng.normal(size=param_size)
     
     bandit = BanditEnv(
-        x_dist=np.random.uniform, 
+        x_dist=random_uniform, 
         action_space=list(range(num_actions)),
         feature_vector=utils.wrapped_partial(
             orthogonal_polynomial_feature, p=p, num_actions=num_actions
@@ -284,7 +284,7 @@ def get_standard_bandit(safety_means, outcome_covariance, reward_means=None, rng
     )
     
     bandit = BanditEnv(
-        x_dist=lambda : 0, 
+        x_dist=lambda : np.array([0]), 
         action_space=action_space,
         feature_vector=feature_vector,
         reward_param=theta_reward,
@@ -311,7 +311,7 @@ def get_power_checker(num_actions, effect_size, rng=None):
     )
                 
     bandit = BanditEnv(
-        x_dist=lambda : 0, 
+        x_dist=lambda : np.array([0]), 
         action_space=action_space,
         feature_vector=feature_vector,
         reward_param=theta_reward,
@@ -351,7 +351,7 @@ def get_dosage_example(num_actions, param_count, outcome_correlation, rng=None):
     cov = var*outcome_correlation
     
     bandit = BanditEnv(
-        x_dist=lambda : 0, 
+        x_dist=lambda : np.array([0]), 
         action_space=action_space,
         feature_vector=rbf_feature_vector,
         reward_param=theta_r,
@@ -380,7 +380,7 @@ def get_uniform_armed_bandit(means, prob_negative, rng=None):
     )
     
     bandit = BanditEnv(
-        x_dist=lambda : 0, 
+        x_dist=lambda : np.array([0]), 
         action_space=list(range(len(means))),
         feature_vector=feature_vector,
         reward_param=reward_param,
@@ -444,9 +444,11 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
         return phi_xa
 
     reward_param = rng.normal(size=p_total)
+    reward_param[0] = -0.5
     reward_param[num_actions:] = 0
     
     safety_param = rng.normal(size=p_total)
+    safety_param[0] = -0.5
     safety_param[num_actions:] = 0
 
     x_dist = utils.wrapped_partial(np.random.normal, size=p_noise)
@@ -457,7 +459,7 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
         feature_vector=standard_bandit_feature_w_noise_features,
         reward_param=reward_param,
         safety_param=safety_param,
-        outcome_covariance=[[1,0],[0,1e-3]]
+        outcome_covariance=[[1,0],[0,1]]
     )
     return bandit
 
