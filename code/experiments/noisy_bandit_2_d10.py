@@ -2,7 +2,7 @@ import _BanditEnv as BanditEnv
 import _bandit_learning as bandit_learning
 import _utils as utils
 
-d_noise = 5
+d_noise = 10
 
 bandit_constructor = utils.wrapped_partial(
     BanditEnv.get_noisy_bandit_2, num_actions=5, p_noise=d_noise

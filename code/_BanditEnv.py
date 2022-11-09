@@ -443,12 +443,13 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
         phi_xa[num_actions:] = x
         return phi_xa
 
-    reward_param = rng.normal(size=p_total)
-    reward_param[0] = -0.5
+    reward_param = np.zeros(p_total)
+    reward_param[:num_actions] = np.linspace(0, 40, num_actions)
     reward_param[num_actions:] = 0
     
-    safety_param = rng.normal(size=p_total)
-    safety_param[0] = -0.5
+    safety_param = np.zeros(p_total) #rng.normal(size=p_total)
+    safety_param[1:num_actions] = np.linspace(40, 20, num_actions-1)
+    safety_param[1:num_actions:2] = -10
     safety_param[num_actions:] = 0
 
     x_dist = utils.wrapped_partial(np.random.normal, size=p_noise)
@@ -459,7 +460,7 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
         feature_vector=standard_bandit_feature_w_noise_features,
         reward_param=reward_param,
         safety_param=safety_param,
-        outcome_covariance=[[1,0],[0,1]]
+        outcome_covariance=[[60**2,0],[0,20**2]]
     )
     return bandit
 
@@ -467,7 +468,7 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
 if __name__ == "__main__":
     num_instances = 1
     num_actions = 5
-    bandit = get_high_dim_contextual_bandit(p=5, num_actions=num_actions)
+    bandit = get_noisy_bandit_2(p_noise=1, num_actions=num_actions)
     bandit.reset(10, 1)
     import pandas as pd
     
@@ -476,7 +477,7 @@ if __name__ == "__main__":
     for i in range(n):
         x = bandit.sample()
         for a_bound in np.linspace(0.5, 10, 20):
-            for a in np.linspace(-a_bound, a_bound, num_actions):
+            for a in bandit.action_space:
                 phi_xa = bandit.feature_vector(x, a)
                 r_xa = phi_xa @ bandit.reward_param
                 s_xa = phi_xa @ bandit.safety_param
