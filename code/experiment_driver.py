@@ -17,9 +17,9 @@ experiment_list = [
     # 'dosage_bandit_zero_correlation', # Desktop
     # 'dosage_bandit_negative_correlation',  # Work laptop
     # 'dosage_bandit_positive_correlation',  # Work laptop
-    # 'contextual_bandit_dot_plus_50',
+    'contextual_bandit_dot_plus_50',
     'contextual_bandit_dot_0',
-    # 'contextual_bandit_dot_minus_50'
+    'contextual_bandit_dot_minus_50'
     # 'high_dim_contextual_5', # Work laptop
     # 'high_dim_contextual_10', # Work laptop
     # 'high_dim_contextual_15', # School laptop
