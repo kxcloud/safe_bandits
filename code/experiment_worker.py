@@ -15,6 +15,11 @@ def main(argv):
     experiment_settings = importlib.import_module(settings_filename)
     algorithm_settings = importlib.import_module(algorithm_filename)
     
+    if 'override_burn_in_samples_per_action' in dir(experiment_settings):
+        burn_in = experiment_settings.override_burn_in_samples_per_action
+    else:
+        burn_in = algorithm_settings.burn_in_samples_per_action
+    
     alg_dict = algorithm_settings.get_alg_dict(
         baseline_policy = experiment_settings.baseline_policy,
     )
@@ -29,7 +34,7 @@ def main(argv):
         results = experiment_settings.evaluator(
             alg_label=alg_label,
             learning_algorithm=learning_algorithm,
-            burn_in_samples_per_action=algorithm_settings.burn_in_samples_per_action,
+            burn_in_samples_per_action=burn_in,
             num_alg_timesteps=algorithm_settings.num_alg_timesteps,
             num_runs=num_runs,
         )

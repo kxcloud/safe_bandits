@@ -156,7 +156,7 @@ def plot_many(
     # WARNING: this assumes best_safe_reward is the same for all runs
     if plot_baseline_rewards:
         print("Warning: plot_baseline_rewards assumes fixed environment.")
-        axes[0].axhline(results["best_safe_reward"], ls=":", c="black", lw=1)      
+        axes[0].axhline(results["best_safe_reward"], ls="-.", c="black", lw=1)      
         axes[0].axhline(results["baseline_reward"], ls=":", c="black", lw=1)
         
     plt.legend(loc='best', bbox_to_anchor=(0.5, 0., 0.5, 0.5))

@@ -200,8 +200,6 @@ class BanditEnv:
 # Apply on single (x,a) pairs -- no broadcasting
 # "Standard bandit" means the context is ignored
 
-random_uniform = utils.wrapped_partial(np.random.uniform, size=1)
-
 def orthogonal_polynomial_feature(x, a, p, num_actions):
     """ Assumes action space is {0, 1, ... num_actions-1}. """
     polynomial_terms = p+1
@@ -227,7 +225,10 @@ def standard_bandit_rbf_feature(x, a, param_count):
 
 # PRESET BANDIT ENVS
 
-def get_polynomial_bandit(rng):
+def get_polynomial_bandit(**kwargs):
+    context_rng = kwargs.get("context_rng", np.random.default_rng())
+    x_dist = utils.wrapped_partial(context_rng.uniform, size=1)
+    
     theta_reward_0 = np.array([0, 2, 0, -2])*0
     theta_reward_1 = np.array([-1, 0.5, 2, 0])
     theta_reward = np.concatenate((theta_reward_0, theta_reward_1))
@@ -237,7 +238,7 @@ def get_polynomial_bandit(rng):
     theta_safety = np.concatenate((theta_safety_0, theta_safety_1))
     
     bandit = BanditEnv(
-        x_dist=random_uniform, 
+        x_dist=x_dist, 
         action_space=[0,1],
         feature_vector=utils.wrapped_partial(
             orthogonal_polynomial_feature, p=3, num_actions=2
@@ -248,17 +249,18 @@ def get_polynomial_bandit(rng):
     )
     return bandit
 
-def get_random_polynomial_bandit(
-        num_actions, p=3, rng=None
-    ):   
-    rng = np.random.default_rng() if rng is None else rng
+def get_random_polynomial_bandit(num_actions, p=3, **kwargs):   
+    param_rng = kwargs.get("param_rng", np.random.default_rng())
+    context_rng = kwargs.get("context_rng", np.random.default_rng())
+    
+    x_dist = utils.wrapped_partial(context_rng.uniform, size=1)
     
     param_size = (p+1)*num_actions
-    theta_reward = rng.normal(size=param_size)
-    theta_safety = rng.normal(size=param_size)
+    theta_reward = param_rng.normal(size=param_size)
+    theta_safety = param_rng.normal(size=param_size)
     
     bandit = BanditEnv(
-        x_dist=random_uniform, 
+        x_dist=x_dist, 
         action_space=list(range(num_actions)),
         feature_vector=utils.wrapped_partial(
             orthogonal_polynomial_feature, p=p, num_actions=num_actions
@@ -269,12 +271,12 @@ def get_random_polynomial_bandit(
     )
     return bandit
     
-def get_standard_bandit(safety_means, outcome_covariance, reward_means=None, rng=None):
-    rng = np.random.default_rng() if rng is None else rng
+def get_standard_bandit(safety_means, outcome_covariance, reward_means=None, **kwargs):
+    param_rng = kwargs.get("param_rng", np.random.default_rng())
     
     num_actions = len(safety_means)
         
-    theta_reward = rng.normal(size=len(safety_means)) if reward_means is None else reward_means
+    theta_reward = param_rng.normal(size=len(safety_means)) if reward_means is None else reward_means
     theta_safety = safety_means
     
     action_space = list(range(num_actions))
@@ -293,7 +295,7 @@ def get_standard_bandit(safety_means, outcome_covariance, reward_means=None, rng
     )
     return bandit
 
-def get_power_checker(num_actions, effect_size, rng=None):
+def get_power_checker(num_actions, effect_size, **kwargs):
     """
     A non-contextual bandit with only one arm worth considering.
     """
@@ -321,7 +323,7 @@ def get_power_checker(num_actions, effect_size, rng=None):
     return bandit
 
 
-def get_dosage_example(num_actions, param_count, outcome_correlation, rng=None):
+def get_dosage_example(num_actions, param_count, outcome_correlation, **kwargs):
     """
     A non-contextual linear bandit where reward is increasing and safety is 
     decreasing in action ("dosage") level, and information is pooled across 
@@ -360,7 +362,7 @@ def get_dosage_example(num_actions, param_count, outcome_correlation, rng=None):
     )
     return bandit
 
-def get_uniform_armed_bandit(means, prob_negative, rng=None):
+def get_uniform_armed_bandit(means, prob_negative, **kwargs):
     """
     A non-contextual, standard bandit where arm i has reward distribution
     Uniform([l_i, u_i]) and safety is defined as reward being positive.
@@ -399,21 +401,22 @@ def get_uniform_armed_bandit(means, prob_negative, rng=None):
         
     return bandit
 
-def get_high_dim_contextual_bandit(p, num_actions, rng=None):
-    rng = np.random.default_rng() if rng is None else rng
+def get_high_dim_contextual_bandit(p, num_actions, **kwargs):
+    param_rng = kwargs.get("param_rng", np.random.default_rng())
+    context_rng = kwargs.get("context_rng", np.random.default_rng())
     
     x_dim = 5
     x_and_a_dim = 2*x_dim
     
-    x_dist = utils.wrapped_partial(np.random.normal, size=x_dim)
+    x_dist = utils.wrapped_partial(context_rng.normal, size=x_dim)
     action_space = np.linspace(-2, 2, num_actions)
     
-    reward_param = rng.normal(size=p, scale=10)
+    reward_param = param_rng.normal(size=p, scale=10)
     reward_param[p//2:] = 0 # half of contexts don't matter
-    safety_param = rng.normal(size=p, scale=10)
+    safety_param = param_rng.normal(size=p, scale=10)
     safety_param[p//2:] = 0 # half of contexts don't matter
 
-    knots  = rng.normal(size=(x_and_a_dim, p))
+    knots = param_rng.normal(size=(x_and_a_dim, p))
     
     def feature_vector(x, a):
         distances = np.linalg.norm(np.append(x,[a]*x_dim)[:,None] - knots, 2, axis=0)
@@ -430,8 +433,8 @@ def get_high_dim_contextual_bandit(p, num_actions, rng=None):
     return bandit
 
 
-def get_noisy_bandit_2(p_noise, num_actions, rng=None):
-    rng = np.random.default_rng() if rng is None else rng
+def get_noisy_bandit_2(p_noise, num_actions, **kwargs):
+    context_rng = kwargs.get("context_rng", np.random.default_rng())
     
     """ A standard bandit but with """
     p_total = num_actions+p_noise
@@ -452,7 +455,7 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
     safety_param[1:num_actions:2] = -10
     safety_param[num_actions:] = 0
 
-    x_dist = utils.wrapped_partial(np.random.normal, size=p_noise)
+    x_dist = utils.wrapped_partial(context_rng.normal, size=p_noise)
 
     bandit = BanditEnv(
         x_dist=x_dist, 
@@ -465,28 +468,59 @@ def get_noisy_bandit_2(p_noise, num_actions, rng=None):
     return bandit
 
 
+def get_contextual_bandit(reward_betas, safety_betas, context_rng, **kwargs):
+    """ 
+    Multivariate normal context; unique beta for each reward and safety,
+    passed as matrix of shape (num_actions, d). Betas are orthogonal
+    by action but beta^r[a] can be non-orthogonal to beta^s[a]
+    """
+    assert reward_betas.shape == safety_betas.shape
+    
+    num_actions, d = reward_betas.shape
+    d_total = d * num_actions
+        
+    def contextual_bandit_feature(x, a):
+        phi_xa = np.zeros(d_total)
+        start_idx_reward = d*a
+        phi_xa[start_idx_reward:start_idx_reward+d] = x
+        return phi_xa
+
+    # Need to make these overlap
+    reward_param = reward_betas.flatten()
+    safety_param = safety_betas.flatten()
+    
+    x_dist = utils.wrapped_partial(context_rng.normal, size=d)
+
+    bandit = BanditEnv(
+        x_dist=x_dist, 
+        action_space=list(range(num_actions)),
+        feature_vector=contextual_bandit_feature,
+        reward_param=reward_param,
+        safety_param=safety_param,
+        outcome_covariance=[[4**2,0],[0,1e-3]]
+    )
+    return bandit  
+
+def get_contextual_bandit_by_correlation(num_actions, d, correlation, **kwargs):
+    param_rng = kwargs.get("param_rng", np.random.default_rng())
+    context_rng = kwargs.get("context_rng", np.random.default_rng())
+
+    reward_betas = np.zeros((num_actions, 2*d))
+    safety_betas = np.zeros((num_actions, 2*d))
+
+    for a in range(num_actions):
+        reward_betas[a][:d] = param_rng.normal(size=d)
+        safety_betas[a][:d] = correlation * reward_betas[a][:d]
+        safety_betas[a][d:] = (1-correlation) * param_rng.normal(size=d)
+
+    return get_contextual_bandit(reward_betas, safety_betas, context_rng=context_rng)
+
+
 if __name__ == "__main__":
     num_instances = 1
+    
     num_actions = 5
-    bandit = get_noisy_bandit_2(p_noise=1, num_actions=num_actions)
+    
+    bandit = get_contextual_bandit_by_correlation(num_actions, correlation=0, d=1)
     bandit.reset(10, 1)
-    import pandas as pd
-    
-    n = 10_000
-    records = []
-    for i in range(n):
-        x = bandit.sample()
-        for a_bound in np.linspace(0.5, 10, 20):
-            for a in bandit.action_space:
-                phi_xa = bandit.feature_vector(x, a)
-                r_xa = phi_xa @ bandit.reward_param
-                s_xa = phi_xa @ bandit.safety_param
-                records.append([i, a_bound, a, r_xa, s_xa])
-        
-    df = pd.DataFrame.from_records(records, columns=["x_id", "a_bound", "a","r","s"])
-    reward_gap = df.groupby(["x_id","a_bound"]).agg({"r":["min","max"]})
-    reward_gap.columns=["r_min","r_max"]
-    reward_range = reward_gap["r_max"] - reward_gap["r_min"]
-    avg_range_by_actions = reward_range.groupby(["a_bound"]).agg("mean")
-    avg_range_by_actions.plot()
-    
+    x = bandit.sample()

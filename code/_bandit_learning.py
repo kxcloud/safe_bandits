@@ -609,10 +609,13 @@ def evaluate(
         "duration" : None
     }
     
-    rng = np.random.default_rng(seed=47)
+    param_rng = np.random.default_rng(seed=47)
     
     for run_idx in range(num_runs):
-        bandit = bandit_constructor(rng=rng)
+        bandit = bandit_constructor(
+            param_rng=param_rng, # Same parameter sequence per call to evaluate()
+            context_rng=np.random.default_rng(run_idx) # Same context sequence for each run idx
+        )
         bandit.reset(total_timesteps, num_instances)
         
         for i in range(num_burn_in_steps):

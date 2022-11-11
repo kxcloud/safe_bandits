@@ -17,9 +17,9 @@ experiment_list = [
     # 'dosage_bandit_zero_correlation', # Desktop
     # 'dosage_bandit_negative_correlation',  # Work laptop
     # 'dosage_bandit_positive_correlation',  # Work laptop
-    'noisy_bandit_2_d5',
-    'noisy_bandit_2_d10',
-    'noisy_bandit_2_d15',
+    # 'contextual_bandit_dot_plus_50',
+    'contextual_bandit_dot_0',
+    # 'contextual_bandit_dot_minus_50'
     # 'high_dim_contextual_5', # Work laptop
     # 'high_dim_contextual_10', # Work laptop
     # 'high_dim_contextual_15', # School laptop
@@ -30,8 +30,8 @@ experiment_list = [
     # 'all_safe', # Surface
     # 'polynomial_bandit', # Surface
 ]
-num_processes = 4
-num_runs = 2
+num_processes = None
+num_runs = 20
 
 #%% Run experiments
 for experiment_name in experiment_list:
