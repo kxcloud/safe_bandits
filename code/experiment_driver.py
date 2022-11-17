@@ -12,14 +12,14 @@ project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
 # CHANGE SETTINGS HERE
-import experiments.algorithms_2022_11_06 as algorithm_settings
+import experiments.algorithms_2022_11_17_unsafe as algorithm_settings
 experiment_list = [
     # 'dosage_bandit_zero_correlation', # Desktop
     # 'dosage_bandit_negative_correlation',  # Work laptop
     # 'dosage_bandit_positive_correlation',  # Work laptop
-    'contextual_bandit_dot_plus_50',
-    'contextual_bandit_dot_0',
-    'contextual_bandit_dot_minus_50'
+    # 'contextual_bandit_dot_plus_50',
+    # 'contextual_bandit_dot_0',
+    # 'contextual_bandit_dot_minus_50'
     # 'high_dim_contextual_5', # Work laptop
     # 'high_dim_contextual_10', # Work laptop
     # 'high_dim_contextual_15', # School laptop
@@ -28,10 +28,11 @@ experiment_list = [
     # 'power_checker_15', # School laptop
     # 'uniform_bandit', # Surface
     # 'all_safe', # Surface
+    'all_unsafe'
     # 'polynomial_bandit', # Surface
 ]
 num_processes = None
-num_runs = 20
+num_runs = 1000
 
 #%% Run experiments
 for experiment_name in experiment_list:
@@ -99,6 +100,6 @@ visualize_results.plot_many(
     moving_avg_window=20, 
     title=title,
     figsize=(10,4),
-    colors=["gray" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
-    linestyles=[":" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
+    colors=["C0","C1","red"],  #["gray" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
+    linestyles=[':',None,'-.'] #[":" if name in ['Baseline', 'Oracle', 'Unsafe oracle'] else None for name in sorted_keys],
 )

@@ -95,20 +95,28 @@ def highlight_entry(row, timescale, safety_tol=0.1):
 
 if __name__ == "__main__":    
     #%% Make table
-    experiment_list = [
+    experiment_list_standard = [
         'all_safe',
         'dosage_bandit_zero_correlation',
         'dosage_bandit_negative_correlation',
         'dosage_bandit_positive_correlation',
-        'high_dim_contextual_5',
-        'high_dim_contextual_10',
-        'high_dim_contextual_15',
-        'polynomial_bandit',
+        # 'polynomial_bandit',
         'power_checker_5',
         'power_checker_10',
         'power_checker_15',
         'uniform_bandit',
+    ]   
+    
+    experiment_list_context = [
+        'contextual_bandit_dot_0',
+        'contextual_bandit_dot_minus_50',
+        'contextual_bandit_dot_plus_50',
+        'noisy_bandit_2_p5',
+        'noisy_bandit_2_p10',
+        'noisy_bandit_2_p15',
     ]
+    
+    experiment_list = experiment_list_standard + experiment_list_context
     
     algs_to_include = [
         'Pretest all',
@@ -116,8 +124,18 @@ if __name__ == "__main__":
         'SPT (fallback) (safe)',
     ]
     
-    alg_relabeler = {"SPT (fallback) (safe)" : "SPT (fallback)"}
-    setting_relabeler = {"Power checker" : "Single-arm detection", "High-dim context": "Noisy context"}
+    alg_relabeler = {"SPT (fallback) (safe)" : "SPT (fallback)", "Pretest all" : "Pretest All"}
+    
+    setting_relabeler = {
+        "Power checker" : "Single-arm detection", 
+        "High-dim context": "Noisy context",
+        "Noisy bandit v2, (d_noise=5)" : "Noisy bandit (d=5)",
+        "Noisy bandit v2, (d_noise=10)" : "Noisy bandit (d=10)",
+        "Noisy bandit v2, (d_noise=15)" : "Noisy bandit (d=15)",
+        "Reward-safety corr": "dot",
+        "d=1, " : "",
+        "Contextual bandit" : "Orthogonal actions"
+    }
     
     timescales = ["Average", "Final"]
     dfs = [pd.DataFrame(), pd.DataFrame()]

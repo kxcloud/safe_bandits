@@ -324,10 +324,11 @@ def alg_propose_test_ts(
         random_split, 
         objective_temperature, 
         use_out_of_sample_covariance,
-        sample_overlap,
+        sample_overlap, # deprecated
         thompson_sampling,
         epsilon,
-        safety_tol
+        safety_tol,
+        no_split=False,
     ):
     if random.random() < epsilon(t):
         return np.random.choice(bandit.action_space), None, {}
@@ -341,9 +342,14 @@ def alg_propose_test_ts(
     R = bandit.get_R(flatten=False)
     S = bandit.get_S(flatten=False)
     
-    indices_0, indices_1 = get_stratified_splits(bandit.indices_by_action)
-    phi_XA_1, R_1, S_1 = phi_XA[indices_0], R[indices_0], S[indices_0]
-    phi_XA_2, R_2, S_2 = phi_XA[indices_1], R[indices_1], S[indices_1]
+    if no_split:
+        indices = (range(len(R)),[0]*len(R))
+        phi_XA_1, R_1, S_1 = phi_XA[indices], R[indices], S[indices]
+        phi_XA_2, R_2, S_2 = phi_XA[indices], R[indices], S[indices]
+    else:
+        indices_0, indices_1 = get_stratified_splits(bandit.indices_by_action)
+        phi_XA_1, R_1, S_1 = phi_XA[indices_0], R[indices_0], S[indices_0]
+        phi_XA_2, R_2, S_2 = phi_XA[indices_1], R[indices_1], S[indices_1]
     
     # ESTIMATE SURROGATE OBJECTIVE ON SAMPLE 1
     try:

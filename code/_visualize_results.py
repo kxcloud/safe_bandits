@@ -85,7 +85,7 @@ def plot(
             mean = pd.Series(mean).rolling(moving_avg_window).mean()
             
         label = results["alg_label"] if ax is ax_agreement else None
-        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2.5, ls=linestyle)
+        lines = ax.plot(timesteps, mean, label=label, c=color, lw=2, ls=linestyle)
         
         if plot_confidence:
             num_runs = results[result_key].shape[0]

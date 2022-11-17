@@ -3,8 +3,11 @@ import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 from matplotlib.lines import Line2D
 from scipy.stats import norm, t
+
+matplotlib.rcParams['figure.dpi'] = 100
 
 """
     Simulate Pretest vs S-P-T on standard bandit data without actually
@@ -91,7 +94,7 @@ res.to_csv(filepath, index=False)
 
 #%% Plot
 
-# res = pd.read_csv(filepath)
+res = pd.read_csv(filepath)
 
 def qplot(
         df, x_var, curves_var, fixed_var, fixed_value, 
@@ -126,8 +129,8 @@ def qplot(
         ax.legend(title=curves_var)
         
         legend_types = [
-            Line2D([0], [0], color="gray", label='Multiple Pretest'),
-            Line2D([0], [0], color='gray', ls="--", label='Split-Propose-Test'),
+            Line2D([0], [0], color="gray", label='Pretest All'),
+            Line2D([0], [0], color='gray', ls="--", label='SPT'),
         ]
             
         ax_ghost = ax.twinx()
@@ -143,13 +146,15 @@ def qplot(
     
     return ax
 
-fig, ax = plt.subplots(figsize=(8,5))
-ax.plot(res["num_arms"], res["pass_pct_pretest"], label="Multiple Pretesting")
-ax.plot(res["num_arms"], res["pass_pct_spt"], label="Split-Propose-Test", ls="--")
+fig, ax = plt.subplots(figsize=(4,3.6))
+ax.plot(res["num_arms"], res["pass_pct_pretest"], label="Pretest all", ls=":", lw=2)
+ax.plot(res["num_arms"], res["pass_pct_pretest"], ls="-", lw=2, alpha=0.2, c="C0")
+ax.plot(res["num_arms"], res["pass_pct_spt"], label="SPT", ls="-", lw=2)
 ax.set_xlabel("Number of arms")
 ax.set_ylabel("Power")
 ax.legend()
 
-title = "Power of bandit testing algorithms to detect single good arm"
+title = "Power of bandit testing algorithms\nto detect single good arm"
 subtitle = "(Samples per arm: 20, effect size: 0.5)"
-ax.set_title(title+"\n"+subtitle)
+ax.set_title(title+"\n"+subtitle, fontsize=10)
+plt.tight_layout()

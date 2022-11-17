@@ -12,9 +12,12 @@ project_path = os.path.dirname(code_path)
 data_path = os.path.join(project_path,"data")
 
 def get_dfs_for_plot(results_list, moving_avg_window=None):
+    experiment_name = results_list[0]["experiment_name"]
     result_keys = ["mean_reward", "safety_ind"]
     df_r = pd.DataFrame()
     df_s = pd.DataFrame()
+    df_r.index.name = experiment_name
+    df_s.index.name = experiment_name
 
     for result in results_list:
         alg_label = result["alg_label"]
@@ -31,37 +34,44 @@ def get_dfs_for_plot(results_list, moving_avg_window=None):
             df[alg_label+"_se"] = se
     return df_r, df_s        
 
-def plot_df(df, ax, algs_to_include, include_ci=False, alg_relabeler={}):
+linestyles = {"Pretest all" : ":", "SPT": "-", "SPT (fallback) (safe)" : "--"}
+
+def plot_df(df, ax, algs_to_include, include_ci=False, alg_relabeler={}, **kwargs):
     for alg_idx, alg_label in enumerate(algs_to_include):
         data = df[alg_label]
         color = f"C{alg_idx}"
         if alg_label[-3:] != "_se":
             alg_label_legend = alg_relabeler.get(alg_label, alg_label)
-            ax.plot(data, label=alg_label_legend, c=color, lw=2)
+            ax.plot(data, label=alg_label_legend, c=color, lw=2, ls=linestyles.get(alg_label,None))
             if include_ci:
                 ci_width = 1.96*df[alg_label+"_se"]
                 
-                # ax.plot(data+ci_width, ls="--", c=color, alpha=0.5, lw=1)
-                # ax.plot(data-ci_width, ls="--", c=color, alpha=0.5, lw=1)
-            
                 ci_lb = data-ci_width
                 ci_ub = data+ci_width
                 ax.fill_between(list(data.index), ci_lb, ci_ub, color=color, alpha=0.25) 
             
-experiment_list = [
+experiment_list_standard = [
     'all_safe',
     'dosage_bandit_zero_correlation',
     'dosage_bandit_negative_correlation',
     'dosage_bandit_positive_correlation',
-    'high_dim_contextual_5',
-    'high_dim_contextual_10',
-    'high_dim_contextual_15',
-    'polynomial_bandit',
+    # 'polynomial_bandit',
     'power_checker_5',
     'power_checker_10',
     'power_checker_15',
     'uniform_bandit',
 ]
+
+experiment_list_context = [
+    'contextual_bandit_dot_0',
+    'contextual_bandit_dot_minus_50',
+    'contextual_bandit_dot_plus_50',
+    'noisy_bandit_2_p5',
+    'noisy_bandit_2_p10',
+    'noisy_bandit_2_p15',
+]
+
+EXPERIMENT_LIST = experiment_list_standard
 
 algs_to_include = [
     'Pretest all',
@@ -70,14 +80,26 @@ algs_to_include = [
     # "Oracle",
 ]
 
-alg_relabeler = {"SPT (fallback) (safe)" : "SPT (fallback)"}
-setting_relabeler = {"Power checker" : "Single-arm detection", "High-dim context": "Noisy context"}
-    
+alg_relabeler = {
+    "Pretest all" : "Pretest All",
+    "SPT (fallback) (safe)" : "SPT (fallback)"
+}
 
-nrows=(len(experiment_list)+1)//2
+setting_relabeler = {
+    "Power checker" : "Single-arm detection", 
+    "High-dim context": "Noisy context",
+    "Noisy bandit v2, (d_noise=5)" : "Noisy bandit (d=5)",
+    "Noisy bandit v2, (d_noise=10)" : "Noisy bandit (d=10)",
+    "Noisy bandit v2, (d_noise=15)" : "Noisy bandit (d=15)",
+    "Reward-safety corr": "reward-safety dot",
+    "d=1, " : "",
+    "Contextual bandit" : "Orthogonal actions"
+}
+
+nrows=(len(EXPERIMENT_LIST)+1)//2
 
 fig, axes = plt.subplots(
-    nrows=nrows, ncols=5, figsize=(10,14),
+    nrows=nrows, ncols=5, figsize=(10,2.5*nrows),
     gridspec_kw={"width_ratios":[1,1,1e-5,1,1]}
 )
 renderer = fig.canvas.get_renderer()
@@ -91,15 +113,25 @@ sp_width = axes[0,0].set_title(" ").get_window_extent(renderer=renderer).width
 for dummy_ax in axes[:,2]:
     dummy_ax.axis("off")
     
-if len(experiment_list) % 2 == 1:
+if len(EXPERIMENT_LIST) % 2 == 1:
     axes[-1,-1].axis("off")
 
-for experiment_idx, experiment in enumerate(experiment_list):
-    filenames = glob.glob(os.path.join(data_path,f"{experiment}*.json"))
-    print("Reading\n"+'\n'.join(filenames)+"...")
-    results_dict = visualize_results.read_combine_and_process_json(filenames)
-    results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
-    df_r, df_s = get_dfs_for_plot(results_sorted, moving_avg_window=10)
+for experiment_idx, experiment in enumerate(EXPERIMENT_LIST):
+    df_r_path = os.path.join(data_path,"dfs_to_plot",f"{experiment}_r.csv")
+    df_s_path = os.path.join(data_path,"dfs_to_plot",f"{experiment}_s.csv")
+
+    if os.path.exists(df_r_path) and os.path.exists(df_s_path):        
+        print(f"Reading from {df_r_path}...")
+        df_r = pd.read_csv(df_r_path, index_col=0)
+        df_s = pd.read_csv(df_s_path, index_col=0)
+    else:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+        filenames = glob.glob(os.path.join(data_path,f"{experiment}*.json"))
+        print("Reading\n"+'\n'.join(filenames)+"...")
+        results_dict = visualize_results.read_combine_and_process_json(filenames)
+        results_sorted = [results_dict[key] for key in sorted(results_dict.keys())]
+        df_r, df_s = get_dfs_for_plot(results_sorted, moving_avg_window=10)
+        df_r.to_csv(df_r_path)
+        df_s.to_csv(df_s_path)    
     
     ax_r = axes_flat[2*experiment_idx]
     ax_s = axes_flat[2*experiment_idx+1]
@@ -112,7 +144,7 @@ for experiment_idx, experiment in enumerate(experiment_list):
     plot_df(df_r, ax_r, algs_to_include, include_ci=True, alg_relabeler=alg_relabeler)
     plot_df(df_s, ax_s, algs_to_include, include_ci=False, alg_relabeler=alg_relabeler)
     
-    experiment_name = results_sorted[0]["experiment_name"]
+    experiment_name = df_r.index.name #results_sorted[0]["experiment_name"]
     for original, new in setting_relabeler.items():
         experiment_name = experiment_name.replace(original, new)
     
