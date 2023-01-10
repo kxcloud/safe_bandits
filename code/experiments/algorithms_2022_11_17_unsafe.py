@@ -18,7 +18,7 @@ def get_alg_dict(baseline_policy):
         #     bandit_learning.alg_oracle,
         #     baseline_policy=baseline_policy
         # ),
-        "Pretest all" : utils.wrapped_partial(
+        "Pretest All" : utils.wrapped_partial(
                 bandit_learning.alg_fwer_pretest_ts, 
                 baseline_policy=baseline_policy,
                 epsilon=EPSILON

@@ -71,7 +71,7 @@ experiment_list_context = [
     'noisy_bandit_2_p15',
 ]
 
-EXPERIMENT_LIST = experiment_list_standard
+EXPERIMENT_LIST = experiment_list_context
 
 algs_to_include = [
     'Pretest all',
@@ -91,8 +91,9 @@ setting_relabeler = {
     "Noisy bandit v2, (d_noise=5)" : "Noisy bandit (d=5)",
     "Noisy bandit v2, (d_noise=10)" : "Noisy bandit (d=10)",
     "Noisy bandit v2, (d_noise=15)" : "Noisy bandit (d=15)",
-    "Reward-safety corr": "reward-safety dot",
+    "Reward-safety corr": "dot",
     "d=1, " : "",
+    "d=" : "d_noise=",
     "Contextual bandit" : "Orthogonal actions"
 }
 

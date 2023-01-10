@@ -84,7 +84,7 @@ def plot(
         if moving_avg_window:
             mean = pd.Series(mean).rolling(moving_avg_window).mean()
             
-        label = results["alg_label"] if ax is ax_agreement else None
+        label = results["alg_label"] #if ax is ax_agreement else None
         lines = ax.plot(timesteps, mean, label=label, c=color, lw=2, ls=linestyle)
         
         if plot_confidence:
@@ -151,7 +151,7 @@ def plot_many(
             include_mean_safety=include_mean_safety
         )
     
-    axes[-1].legend()
+    axes[-2].legend()
     
     # WARNING: this assumes best_safe_reward is the same for all runs
     if plot_baseline_rewards:
