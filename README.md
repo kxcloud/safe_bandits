@@ -11,4 +11,5 @@ A framework for online learning in the constrained linear contextual bandit sett
 * **To run an experiment,** execute `experiment_driver.py`, which will use the specified experiment configurations and call the `experiment_worker.py` to make repeated calls to `_bandit_learning.evaluate()`.
 * **One-off scripts** with no dependencies live in the `standalone` folder.
 
-The framework was used to for simulation experiments in the third chapter of [my thesis](https://repository.lib.ncsu.edu/handle/1840.20/40248). 
+The framework was used for simulation experiments in chapter 4 of [my thesis](https://repository.lib.ncsu.edu/handle/1840.20/40248). I described the problem setting as:
+>... a constrained reinforcement learning problem, where in addition to reward maximization, a decision maker must also select actions according to a constraint on their “safety.” Constraint satisfaction, like the underlying reward signal, is estimated from noisy data and thus requires careful handling of uncertainty.
